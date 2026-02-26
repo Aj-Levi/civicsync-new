@@ -79,7 +79,7 @@ export default function LanguageSelectionPage() {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="flex gap-4 mb-12"
+        className="flex flex-wrap justify-center gap-5 mb-10"
       >
         {languages.map(({ code, name, sub }, i) => {
           const isSelected = language === code;
@@ -89,16 +89,21 @@ export default function LanguageSelectionPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35 + i * 0.1 }}
+              whileHover={!isSelected ? { scale: 1.06, y: -3 } : {}}
               whileTap={{ scale: 0.95 }}
               onClick={() => handleSelect(code)}
-              className={`rounded-2xl px-5 py-5 text-center min-w-[110px] transition-all duration-200 ${
-                isSelected
-                  ? "bg-white text-[#1E3A5F] shadow-2xl ring-4 ring-blue-300/40"
-                  : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-              }`}
+              className={`
+                w-24 h-30 rounded-2xl flex flex-col items-center justify-center
+                text-center transition-all duration-200 cursor-pointer select-none
+                ${
+                  isSelected
+                    ? "bg-white text-[#1E3A5F] shadow-2xl ring-4 ring-blue-300/50 scale-105"
+                    : "bg-white/10 text-white border border-white/25 hover:bg-white/20 hover:border-white/40"
+                }
+              `}
             >
               <p
-                className={`text-xl font-bold ${isSelected ? "text-[#1E3A5F]" : "text-white"}`}
+                className={`text-xl font-bold leading-tight ${isSelected ? "text-[#1E3A5F]" : "text-white"}`}
               >
                 {name}
               </p>
@@ -107,36 +112,55 @@ export default function LanguageSelectionPage() {
               >
                 {sub}
               </p>
-              {isSelected && (
-                <div className="mt-3 w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center mx-auto shadow">
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 12 12"
+
+              {/* Checkmark slot — always occupies space to keep uniform height */}
+              <div className="mt-3 w-7 h-7 flex items-center justify-center mx-auto">
+                {isSelected ? (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center shadow"
                   >
-                    <path
-                      d="M2 6l3 3 5-5"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              )}
+                    <svg
+                      className="w-3.5 h-3.5 text-white"
+                      fill="none"
+                      viewBox="0 0 12 12"
+                    >
+                      <path
+                        d="M2 6l3 3 5-5"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </motion.div>
+                ) : (
+                  /* Empty placeholder so height stays constant */
+                  <div className="w-7 h-7 rounded-full border border-white/20" />
+                )}
+              </div>
             </motion.button>
           );
         })}
       </motion.div>
 
-      <motion.p
+      {/* Pulsing tap hint */}
+      <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.6 }}
+        animate={{ opacity: 1 }}
         transition={{ delay: 0.7 }}
-        className="text-white/60 text-xs tracking-widest uppercase"
+        className="flex flex-col items-center gap-2"
       >
-        {t("selectLanguage")} • ਭਾਸ਼ਾ ਚੁਣਨ ਲਈ ਛੂਹੋ
-      </motion.p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="text-white text-xs tracking-widest uppercase"
+        >
+          {t("selectLanguage")} • ਭਾਸ਼ਾ ਚੁਣੋ • भाषा चुनें
+        </motion.p>
+      </motion.div>
     </div>
   );
 }
