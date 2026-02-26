@@ -322,3 +322,29 @@ export const getServiceRequestById = (id: string) =>
   request<{ success: boolean; serviceRequest: CitizenServiceRequest }>(
     `/service-requests/${id}`,
   );
+
+// ── Heatmap ────────────────────────────────────────────────────────────────────
+
+export interface HeatmapDistrict {
+  districtId: string;
+  name: string;
+  count: number;
+  topCategory: string;
+  urgencyScore: number;
+  lat: number;
+  lng: number;
+}
+
+export const getHeatmap = (params?: {
+  districtId?: string;
+  days?: number;
+  category?: string;
+}) => {
+  const qs = new URLSearchParams();
+  if (params?.districtId) qs.set("districtId", params.districtId);
+  if (params?.days) qs.set("days", String(params.days));
+  if (params?.category) qs.set("category", params.category);
+  return request<{ success: boolean; districts: HeatmapDistrict[] }>(
+    `/complaints/heatmap${qs.toString() ? `?${qs}` : ""}`,
+  );
+};

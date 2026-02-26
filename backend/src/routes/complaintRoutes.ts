@@ -8,6 +8,7 @@ import {
   submitComplaint,
   getMyComplaints,
   getComplaintByRef,
+  getHeatmap,
 } from "../controllers/complaintController";
 
 // ── Multer disk storage ────────────────────────────────────────────────────────
@@ -34,7 +35,10 @@ const upload = multer({
 // ── Routes ─────────────────────────────────────────────────────────────────────
 const router = Router();
 
-// All complaint routes require authentication
+// Public — no auth required (heatmap is public data)
+router.get("/heatmap", getHeatmap);
+
+// All remaining complaint routes require authentication
 router.use(authGuard);
 
 // Submit a new complaint (citizens only) — multipart/form-data with optional `photo`

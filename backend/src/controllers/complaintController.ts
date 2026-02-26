@@ -197,3 +197,79 @@ export const getComplaintByRef = async (
     next(err);
   }
 };
+
+// ─── GET /api/complaints/heatmap ──────────────────────────────────────────────
+// Aggregates complaints by district — returns count, top category, and coords.
+// Query params:
+//   districtId  — filter to a specific district ObjectId
+//   days        — look back N days (default 30)
+//   category    — filter by category string
+export const getHeatmap = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const {
+      districtId,
+      days = "30",
+      category,
+    } = req.query as Record<string, string>;
+
+    const since = new Date();
+    since.setDate(since.getDate() - parseInt(days, 10));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const match: Record<string, any> = { createdAt: { $gte: since } };
+    if (districtId) match.district = districtId;
+    if (category) match.category = new RegExp(category, "i");
+
+    const results = await Complaint.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: "$district",
+          count: { $sum: 1 },
+          topCategory: { $first: "$category" },
+          urgencySum: {
+            $sum: {
+              $cond: [
+                { $eq: ["$urgency", "high"] },
+                3,
+                { $cond: [{ $eq: ["$urgency", "medium"] }, 2, 1] },
+              ],
+            },
+          },
+          lat: { $first: { $arrayElemAt: ["$location.coordinates", 1] } },
+          lng: { $first: { $arrayElemAt: ["$location.coordinates", 0] } },
+        },
+      },
+      {
+        $lookup: {
+          from: "districts",
+          localField: "_id",
+          foreignField: "_id",
+          as: "districtInfo",
+        },
+      },
+      { $unwind: { path: "$districtInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          districtId: "$_id",
+          name: { $ifNull: ["$districtInfo.name", "Unknown"] },
+          count: 1,
+          topCategory: 1,
+          urgencyScore: "$urgencySum",
+          lat: 1,
+          lng: 1,
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    res.status(200).json({ success: true, districts: results });
+  } catch (err) {
+    next(err);
+  }
+};
