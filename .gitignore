@@ -26,3 +26,11 @@ dist-ssr
 # reference files
 Project_overview.md
 features.txt
+
+# backend secrets & build output
+backend/.env
+backend/dist/
+backend/.env.example
+
+#frontend secrets
+frontend/.env

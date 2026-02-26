@@ -4,21 +4,29 @@ import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { useSessionStore } from "../../store/sessionStore";
 import { useTranslation } from "../../lib/i18n";
+import * as api from "../../lib/api";
 
 const OTP_LENGTH = 6;
-const RESEND_COOLDOWN = 20;
+const RESEND_COOLDOWN = 30;
 
 export default function OTPPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const phone = (state as { phone?: string })?.phone ?? "98XXXXXXXX";
-  const { loginCitizen } = useSessionStore();
+  const phone = (state as { phone?: string })?.phone ?? "";
+  const { setCitizenSession } = useSessionStore();
   const { t } = useTranslation();
 
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [resend, setResend] = useState(RESEND_COOLDOWN);
+  const [resendLoading, setResendLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Redirect if no phone in state
+  useEffect(() => {
+    if (!phone) navigate("/login", { replace: true });
+  }, [phone, navigate]);
 
   // Resend countdown
   useEffect(() => {
@@ -40,6 +48,7 @@ export default function OTPPage() {
     if (e.key === "Backspace" && !digits[i] && i > 0) {
       inputRefs.current[i - 1]?.focus();
     }
+    if (e.key === "Enter") handleVerify();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -55,15 +64,49 @@ export default function OTPPage() {
     inputRefs.current[Math.min(pasted.length, OTP_LENGTH - 1)]?.focus();
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const otp = digits.join("");
     if (otp.length < OTP_LENGTH) {
       setError("Please enter all 6 digits.");
       return;
     }
-    // Accept any 6-digit OTP in demo
-    loginCitizen(phone);
-    navigate("/citizen", { replace: true });
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.verifyOTP(phone, otp);
+      setCitizenSession({
+        id: res.user.id,
+        name: res.user.name,
+        mobile: res.user.mobile,
+        district: res.user.district,
+        preferredLanguage: res.user.preferredLanguage,
+      });
+      navigate("/citizen", { replace: true });
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Verification failed. Try again.",
+      );
+      // Clear digits on wrong OTP
+      setDigits(Array(OTP_LENGTH).fill(""));
+      inputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    setError("");
+    try {
+      await api.sendOTP(phone);
+      setResend(RESEND_COOLDOWN);
+      setDigits(Array(OTP_LENGTH).fill(""));
+      inputRefs.current[0]?.focus();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to resend OTP.");
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   return (
@@ -127,7 +170,8 @@ export default function OTPPage() {
               value={d}
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
-              className="w-11 h-12 border-2 border-gray-200 rounded-xl text-center text-xl font-bold text-gray-800 bg-gray-50 focus:outline-none focus:border-[#1E3A5F] transition-colors"
+              disabled={loading}
+              className="w-11 h-12 border-2 border-gray-200 rounded-xl text-center text-xl font-bold text-gray-800 bg-gray-50 focus:outline-none focus:border-[#1E3A5F] transition-colors disabled:opacity-60"
             />
           ))}
         </div>
@@ -138,9 +182,17 @@ export default function OTPPage() {
 
         <button
           onClick={handleVerify}
-          className="w-full py-3.5 rounded-xl bg-[#16A34A] text-white font-bold text-base hover:bg-green-700 transition-colors btn-touch mb-4"
+          disabled={loading}
+          className="w-full py-3.5 rounded-xl bg-[#16A34A] text-white font-bold text-base hover:bg-green-700 transition-colors btn-touch mb-4 disabled:opacity-60 flex items-center justify-center gap-2"
         >
-          {t("verifyBtn")}
+          {loading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              Verifying…
+            </>
+          ) : (
+            t("verifyBtn")
+          )}
         </button>
 
         {/* Resend */}
@@ -153,10 +205,11 @@ export default function OTPPage() {
             </span>
           ) : (
             <button
-              onClick={() => setResend(RESEND_COOLDOWN)}
-              className="text-blue-600 font-semibold hover:underline"
+              onClick={handleResend}
+              disabled={resendLoading}
+              className="text-blue-600 font-semibold hover:underline disabled:opacity-60"
             >
-              {t("resend")}
+              {resendLoading ? "Sending…" : t("resend")}
             </button>
           )}
         </p>

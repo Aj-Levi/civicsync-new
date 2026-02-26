@@ -1,16 +1,19 @@
 import { create } from "zustand";
-import { dummyUser, dummyAdmin } from "../data/dummyData";
+import * as api from "../lib/api";
 
 export type Language = "en" | "hi" | "pa";
-export type UserRole = "citizen" | "admin" | "guest";
+export type UserRole = "citizen" | "admin" | "superadmin" | "guest";
 
 interface SessionUser {
   id: string;
   name: string;
-  phone?: string;
+  mobile?: string;
   email?: string;
-  address?: string;
-  department?: string;
+  username?: string;
+  role?: string;
+  district?: string;
+  department?: unknown;
+  preferredLanguage?: string;
 }
 
 interface SessionState {
@@ -18,59 +21,48 @@ interface SessionState {
   role: UserRole;
   user: SessionUser | null;
   language: Language;
-  loginCitizen: (phone: string) => void;
-  loginAdmin: (username: string, password: string) => boolean;
+
+  // Called after OTP verified — sets citizen session from API response
+  setCitizenSession: (user: SessionUser) => void;
+  // Called after admin login — sets admin session from API response
+  setAdminSession: (user: SessionUser) => void;
+
   loginGuest: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   setLanguage: (lang: Language) => void;
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   isAuthenticated: false,
   role: "guest",
   user: null,
   language: "en",
 
-  loginCitizen: (phone: string) => {
-    // Simulate OTP verified — accept any number
-    set({
-      isAuthenticated: true,
-      role: "citizen",
-      user: { ...dummyUser, phone },
-    });
+  setCitizenSession: (user: SessionUser) => {
+    set({ isAuthenticated: true, role: "citizen", user });
   },
 
-  loginAdmin: (username: string, password: string) => {
-    if (username === dummyAdmin.username && password === dummyAdmin.password) {
-      set({
-        isAuthenticated: true,
-        role: "admin",
-        user: {
-          id: dummyAdmin.id,
-          name: dummyAdmin.name,
-          email: dummyAdmin.email,
-          department: dummyAdmin.department,
-        },
-      });
-      return true;
-    }
-    return false;
+  setAdminSession: (user: SessionUser) => {
+    set({ isAuthenticated: true, role: "admin", user });
   },
 
   loginGuest: () => {
-    set({
-      isAuthenticated: true,
-      role: "guest",
-      user: null,
-    });
+    set({ isAuthenticated: true, role: "guest", user: null });
   },
 
-  logout: () =>
-    set({
-      isAuthenticated: false,
-      role: "guest",
-      user: null,
-    }),
+  logout: async () => {
+    try {
+      const { role } = get();
+      if (role === "admin" || role === "superadmin") {
+        await api.adminLogout();
+      } else {
+        await api.logout();
+      }
+    } catch {
+      // Always clear local state even if API call fails
+    }
+    set({ isAuthenticated: false, role: "guest", user: null });
+  },
 
   setLanguage: (lang: Language) => set({ language: lang }),
 }));

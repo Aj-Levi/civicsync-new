@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Smartphone, Lock, Eye, EyeOff } from "lucide-react";
 import { useSessionStore } from "../../store/sessionStore";
 import { useTranslation } from "../../lib/i18n";
+import * as api from "../../lib/api";
 
 export default function LoginPage() {
   const [role, setRole] = useState<"citizen" | "admin">("citizen");
@@ -12,26 +13,61 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
-  const { loginAdmin, loginGuest } = useSessionStore();
+  const [loading, setLoading] = useState(false);
+  const { setAdminSession, loginGuest } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const handleCitizenSubmit = () => {
-    if (phone.replace(/\D/g, "").length < 10) {
+  // ── Citizen: send OTP via backend ──────────────────────────────────────────
+  const handleCitizenSubmit = async () => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length < 10) {
       setError("Please enter a valid 10-digit mobile number.");
       return;
     }
     setError("");
-    navigate("/otp", { state: { phone } });
+    setLoading(true);
+    try {
+      await api.sendOTP(cleaned);
+      navigate("/otp", { state: { phone: cleaned } });
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to send OTP. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAdminSubmit = () => {
+  // ── Admin: username + password ─────────────────────────────────────────────
+  const handleAdminSubmit = async () => {
+    if (!username.trim() || !password) {
+      setError("Username and password are required.");
+      return;
+    }
     setError("");
-    const ok = loginAdmin(username, password);
-    if (ok) {
+    setLoading(true);
+    try {
+      const res = await api.adminLogin(username.trim(), password);
+      setAdminSession({
+        id: res.admin.id,
+        name: res.admin.name,
+        username: res.admin.username,
+        email: res.admin.email,
+        role: res.admin.role,
+        district:
+          typeof res.admin.district === "string"
+            ? res.admin.district
+            : undefined,
+        department: res.admin.department,
+      });
       navigate("/admin", { replace: true });
-    } else {
-      setError("Invalid username or password. Try admin / admin123");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Invalid credentials.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -119,16 +155,26 @@ export default function LoginPage() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCitizenSubmit()}
               placeholder="98765 XXXXX"
               maxLength={15}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+              disabled={loading}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4 disabled:opacity-60"
             />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
             <button
               onClick={handleCitizenSubmit}
-              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold text-base hover:bg-[#163050] transition-colors btn-touch"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold text-base hover:bg-[#163050] transition-colors btn-touch disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {t("sendOtp")}
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Sending OTP…
+                </>
+              ) : (
+                t("sendOtp")
+              )}
             </button>
             <button
               onClick={() => {
@@ -153,7 +199,8 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="admin"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4"
+              disabled={loading}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 mb-4 disabled:opacity-60"
             />
             <label className="text-sm font-medium text-gray-600 mb-1.5 block">
               {t("password")}
@@ -163,8 +210,10 @@ export default function LoginPage() {
                 type={showPw ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdminSubmit()}
                 placeholder="••••••••"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 pr-12"
+                disabled={loading}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300 pr-12 disabled:opacity-60"
               />
               <button
                 type="button"
@@ -177,13 +226,18 @@ export default function LoginPage() {
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
             <button
               onClick={handleAdminSubmit}
-              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold text-base hover:bg-[#163050] transition-colors btn-touch"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold text-base hover:bg-[#163050] transition-colors btn-touch disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {t("loginBtn")}
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                t("loginBtn")
+              )}
             </button>
-            <p className="text-center text-xs text-gray-400 mt-3">
-              Demo: admin / admin123
-            </p>
           </>
         )}
       </motion.div>
