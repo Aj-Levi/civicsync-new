@@ -31,6 +31,7 @@ features.txt
 backend/.env
 backend/dist/
 backend/.env.example
+backend/uploads
 
 #frontend secrets
 frontend/.env

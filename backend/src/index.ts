@@ -3,10 +3,14 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
+import path from "path";
 
 import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
 import adminAuthRoutes from "./routes/adminAuthRoutes";
+import complaintRoutes from "./routes/complaintRoutes";
+import adminRoutes from "./routes/adminRoutes";
+import serviceRequestRoutes from "./routes/serviceRequestRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -30,9 +34,15 @@ app.get("/api/health", (_req, res) => {
     .json({ success: true, status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ── Static files ─────────────────────────────────────────────────────────────
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminAuthRoutes);
+app.use("/api/admin", adminRoutes); // CRUD (complaints, service-requests, stats)
+app.use("/api/complaints", complaintRoutes);
+app.use("/api/service-requests", serviceRequestRoutes);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {

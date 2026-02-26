@@ -110,12 +110,12 @@ const complaintSchema = new Schema<IComplaint>(
 
     description: { type: String, required: true, trim: true },
     address: {
-      houseNo: { type: String, required: true },
-      street: { type: String, required: true },
+      houseNo: { type: String, default: "-" },
+      street: { type: String, default: "-" },
       landmark: { type: String },
-      city: { type: String, required: true },
-      state: { type: String, required: true },
-      pincode: { type: String, required: true },
+      city: { type: String, default: "-" },
+      state: { type: String, default: "-" },
+      pincode: { type: String, default: "000000" },
     },
 
     // GeoJSON for 2dsphere queries (heatmap)
@@ -124,7 +124,7 @@ const complaintSchema = new Schema<IComplaint>(
       coordinates: { type: [Number], required: true }, // [lng, lat]
     },
 
-    photoUrl: { type: String, required: true },
+    photoUrl: { type: String, default: "" },
     urgency: { type: String, enum: ["low", "medium", "high"], required: true },
     priority: {
       type: String,

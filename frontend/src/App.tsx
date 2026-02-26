@@ -20,6 +20,7 @@ import PaymentSuccessPage from "./pages/citizen/PaymentSuccessPage";
 import RegisterComplaintPage from "./pages/citizen/RegisterComplaintPage";
 import ComplaintConfirmationPage from "./pages/citizen/ComplaintConfirmationPage";
 import NewServiceRequestPage from "./pages/citizen/NewServiceRequestPage";
+import ServiceRequestConfirmPage from "./pages/citizen/ServiceRequestConfirmPage";
 import TrackStatusPage from "./pages/citizen/TrackStatusPage";
 import ComplaintMapPage from "./pages/citizen/ComplaintMapPage";
 import HelpSupportPage from "./pages/citizen/HelpSupportPage";
@@ -88,6 +89,10 @@ export default function App() {
           <Route
             path="/citizen/service/new"
             element={<NewServiceRequestPage />}
+          />
+          <Route
+            path="/citizen/service/confirm"
+            element={<ServiceRequestConfirmPage />}
           />
           <Route path="/citizen/track" element={<TrackStatusPage />} />
           <Route path="/citizen/map" element={<ComplaintMapPage />} />

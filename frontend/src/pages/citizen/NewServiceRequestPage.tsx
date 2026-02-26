@@ -1,56 +1,179 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Upload } from "lucide-react";
-import { useCivicStore } from "../../store/civicStore";
+import { ArrowLeft, Upload, X, Loader2 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
+import * as api from "../../lib/api";
 
-const services = [
+// ── Config ────────────────────────────────────────────────────────────────────
+const SERVICES = [
   {
-    type: "electricity" as const,
+    type: "electricity",
     label: "Electricity Connection",
     icon: "⚡",
     desc: "New domestic/commercial electricity connection",
   },
   {
-    type: "water" as const,
+    type: "water",
     label: "Water Connection",
     icon: "💧",
     desc: "New residential water supply connection",
   },
   {
-    type: "gas" as const,
+    type: "gas",
     label: "Gas Connection",
     icon: "🔥",
     desc: "PNG/LPG gas pipeline connection",
   },
 ];
 
+const REQUEST_TYPES: Record<string, { value: string; label: string }[]> = {
+  electricity: [
+    { value: "new_connection", label: "New Connection" },
+    { value: "reconnection", label: "Reconnection" },
+    { value: "meter_replacement", label: "Meter Replacement" },
+    { value: "load_change", label: "Load Change" },
+  ],
+  water: [
+    { value: "new_connection", label: "New Connection" },
+    { value: "reconnection", label: "Reconnection" },
+  ],
+  gas: [
+    { value: "new_connection", label: "New Connection" },
+    { value: "reconnection", label: "Reconnection" },
+  ],
+};
+
+const LOCATION_DATA: Record<string, Record<string, string[]>> = {
+  Haryana: {
+    Karnal: ["132001", "132022", "132023", "132024"],
+    Panipat: ["132103", "132104", "132105", "132107"],
+    Ambala: ["134001", "134003", "134007"],
+    Hisar: ["125001", "125004", "125005"],
+    Rohtak: ["124001", "124010", "124021"],
+  },
+};
+
+// ── File upload zone ──────────────────────────────────────────────────────────
+function FileZone({
+  label,
+  file,
+  onChange,
+  required,
+}: {
+  label: string;
+  file: File | null;
+  onChange: (f: File | null) => void;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-gray-600 block mb-1.5">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {file ? (
+        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <span className="text-sm text-green-700 truncate max-w-[75%]">
+            {file.name}
+          </span>
+          <button
+            onClick={() => onChange(null)}
+            className="text-gray-400 hover:text-red-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <label className="flex items-center gap-3 bg-white border-2 border-dashed border-gray-200 rounded-xl p-4 cursor-pointer hover:border-blue-300">
+          <Upload size={20} className="text-gray-400 shrink-0" />
+          <span className="text-sm text-gray-500">
+            Tap to upload (PDF / Image, max 10 MB)
+          </span>
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.webp"
+            className="hidden"
+            onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function NewServiceRequestPage() {
   const [step, setStep] = useState(1);
-  const [serviceType, setServiceType] = useState<
-    "electricity" | "water" | "gas" | ""
-  >("");
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [idProof, setIdProof] = useState("");
-  const [addrProof, setAddrProof] = useState("");
-  const { addServiceRequest } = useCivicStore();
+
+  // Step 1
+  const [serviceType, setServiceType] = useState("");
+  const [requestType, setRequestType] = useState("new_connection");
+
+  // Step 2
+  const [applicantName, setApplicantName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [state, setState] = useState("");
+  const [district, setDistrict] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
+
+  // Step 3
+  const [idProof, setIdProof] = useState<File | null>(null);
+  const [addressProof, setAddressProof] = useState<File | null>(null);
+
+  // Submission
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [touched2, setTouched2] = useState(false);
+
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const handleSubmit = () => {
-    if (!serviceType) return;
-    const refNo = addServiceRequest({
-      serviceType,
-      applicantName: name || "Citizen User",
-      phone: "+919876545678",
-      address: address || "Sector 15, Chandigarh",
-    });
-    navigate("/citizen/track", { state: { newRefNo: refNo } });
+  const states = Object.keys(LOCATION_DATA).sort();
+  const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
+  const pincodes =
+    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
+
+  const step2Valid =
+    applicantName.trim().length > 0 &&
+    contactPhone.trim().length === 10 &&
+    streetAddress.trim().length > 0 &&
+    state !== "" &&
+    district !== "" &&
+    pincode !== "";
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api.submitServiceRequest({
+        serviceType,
+        requestType,
+        applicantName,
+        contactPhone,
+        streetAddress,
+        city: district,
+        state,
+        pincode,
+        districtName: district,
+        additionalNotes: additionalNotes || undefined,
+        idProof,
+        addressProof,
+      });
+      navigate("/citizen/service/confirm", { state: res.serviceRequest });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Submission failed. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const stepTitles = [
+  const stepLabels = [
     t("selectService"),
     t("personalDetails"),
     t("uploadDocuments"),
@@ -59,6 +182,7 @@ export default function NewServiceRequestPage() {
 
   return (
     <div className="min-h-screen bg-[#EEF0FB] px-4 py-4">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <button
           onClick={() => (step > 1 ? setStep((s) => s - 1) : navigate(-1))}
@@ -71,7 +195,7 @@ export default function NewServiceRequestPage() {
         </h1>
       </div>
 
-      {/* Step Indicators */}
+      {/* Progress bar */}
       <div className="flex gap-1 mb-1">
         {[1, 2, 3, 4].map((s) => (
           <div
@@ -81,19 +205,23 @@ export default function NewServiceRequestPage() {
         ))}
       </div>
       <p className="text-xs text-gray-400 mb-5">
-        Step {step} of 4: {stepTitles[step - 1]}
+        Step {step} of 4: {stepLabels[step - 1]}
       </p>
 
+      {/* ── Step 1: Select Service ────────────────────────────────────────────── */}
       {step === 1 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="space-y-3"
         >
-          {services.map(({ type, label, icon, desc }) => (
+          {SERVICES.map(({ type, label, icon, desc }) => (
             <button
               key={type}
-              onClick={() => setServiceType(type)}
+              onClick={() => {
+                setServiceType(type);
+                setRequestType("new_connection");
+              }}
               className={`w-full bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm border-2 transition-all ${serviceType === type ? "border-[#1E3A5F] bg-blue-50" : "border-transparent hover:border-gray-200"}`}
             >
               <span className="text-3xl">{icon}</span>
@@ -103,6 +231,28 @@ export default function NewServiceRequestPage() {
               </div>
             </button>
           ))}
+
+          {serviceType && (
+            <div>
+              <label className="text-sm font-medium text-gray-600 block mb-1.5">
+                Request Type
+              </label>
+              <select
+                value={requestType}
+                onChange={(e) => setRequestType(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                {(REQUEST_TYPES[serviceType] ?? []).map(
+                  ({ value, label: rl }) => (
+                    <option key={value} value={value}>
+                      {rl}
+                    </option>
+                  ),
+                )}
+              </select>
+            </div>
+          )}
+
           <button
             disabled={!serviceType}
             onClick={() => setStep(2)}
@@ -113,6 +263,7 @@ export default function NewServiceRequestPage() {
         </motion.div>
       )}
 
+      {/* ── Step 2: Personal & Location Details ──────────────────────────────── */}
       {step === 2 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -120,64 +271,160 @@ export default function NewServiceRequestPage() {
           className="space-y-4"
         >
           {[
-            [t("fullName"), name, setName, "Your full name"],
-            [t("address"), address, setAddress, "123, Sector XX, City"],
-          ].map(([label, val, setter, ph]) => (
-            <div key={String(label)}>
+            {
+              label: "Full Name *",
+              value: applicantName,
+              setter: setApplicantName,
+              ph: "Your full legal name",
+              valid: applicantName.trim().length > 0,
+            },
+            {
+              label: "Contact Phone *",
+              value: contactPhone,
+              setter: setContactPhone,
+              ph: "10-digit mobile number",
+              valid: contactPhone.trim().length === 10,
+              type: "tel",
+            },
+            {
+              label: "Street Address *",
+              value: streetAddress,
+              setter: setStreetAddress,
+              ph: "House no, street, landmark",
+              valid: streetAddress.trim().length > 0,
+            },
+          ].map(({ label, value, setter, ph, valid, type }) => (
+            <div key={label}>
               <label className="text-sm font-medium text-gray-600 block mb-1.5">
-                {String(label)}
+                {label}
               </label>
               <input
-                value={String(val)}
-                onChange={(e) =>
-                  (setter as (v: string) => void)(e.target.value)
-                }
-                placeholder={String(ph)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                type={type ?? "text"}
+                value={value}
+                maxLength={type === "tel" ? 10 : undefined}
+                onChange={(e) => setter(e.target.value)}
+                placeholder={ph}
+                className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 ${touched2 && !valid ? "border-red-300" : "border-gray-200"}`}
               />
             </div>
           ))}
+
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-1.5">
+              State *
+            </label>
+            <select
+              value={state}
+              onChange={(e) => {
+                setState(e.target.value);
+                setDistrict("");
+                setPincode("");
+              }}
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none ${touched2 && !state ? "border-red-300" : "border-gray-200"}`}
+            >
+              <option value="">-- Select State --</option>
+              {states.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-1.5">
+              District *
+            </label>
+            <select
+              value={district}
+              disabled={!state}
+              onChange={(e) => {
+                setDistrict(e.target.value);
+                setPincode("");
+              }}
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !district ? "border-red-300" : "border-gray-200"}`}
+            >
+              <option value="">-- Select District --</option>
+              {districts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-1.5">
+              Pincode *
+            </label>
+            <select
+              value={pincode}
+              disabled={!district}
+              onChange={(e) => setPincode(e.target.value)}
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !pincode ? "border-red-300" : "border-gray-200"}`}
+            >
+              <option value="">-- Select Pincode --</option>
+              {pincodes.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-600 block mb-1.5">
+              Additional Notes (optional)
+            </label>
+            <textarea
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
+              rows={2}
+              placeholder="Any additional information for the department"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+            />
+          </div>
+
+          {touched2 && !step2Valid && (
+            <p className="text-xs text-red-500">
+              Please fill all required fields with valid data.
+            </p>
+          )}
+
           <button
-            disabled={!name.trim() || !address.trim()}
-            onClick={() => setStep(3)}
-            className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold disabled:opacity-50 btn-touch"
+            onClick={() => {
+              setTouched2(true);
+              if (step2Valid) setStep(3);
+            }}
+            className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold btn-touch"
           >
             {t("next")}
           </button>
         </motion.div>
       )}
 
+      {/* ── Step 3: Upload Documents ──────────────────────────────────────────── */}
       {step === 3 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="space-y-4"
         >
-          {[
-            [t("idProof"), idProof, setIdProof],
-            [t("addressProof"), addrProof, setAddrProof],
-          ].map(([label, val, setter]) => (
-            <div key={String(label)}>
-              <label className="text-sm font-medium text-gray-600 block mb-1.5">
-                {String(label)}
-              </label>
-              <label className="flex items-center gap-3 bg-white border-2 border-dashed border-gray-200 rounded-xl p-4 cursor-pointer hover:border-blue-300">
-                <Upload size={20} className="text-gray-400" />
-                <span className="text-sm text-gray-500">
-                  {String(val) || "Tap to upload"}
-                </span>
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={(e) =>
-                    (setter as (v: string) => void)(
-                      e.target.files?.[0]?.name ?? "",
-                    )
-                  }
-                />
-              </label>
-            </div>
-          ))}
+          <p className="text-sm text-gray-500 bg-white rounded-xl p-3 shadow-sm">
+            📋 Upload clear, legible documents. Accepted formats: PDF, JPEG,
+            PNG, WebP (max 10 MB each).
+          </p>
+          <FileZone
+            label="ID Proof (Aadhaar / PAN / Voter ID)"
+            file={idProof}
+            onChange={setIdProof}
+            required
+          />
+          <FileZone
+            label="Address Proof"
+            file={addressProof}
+            onChange={setAddressProof}
+            required
+          />
+
           <button
             onClick={() => setStep(4)}
             className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold btn-touch"
@@ -187,6 +434,7 @@ export default function NewServiceRequestPage() {
         </motion.div>
       )}
 
+      {/* ── Step 4: Review & Submit ───────────────────────────────────────────── */}
       {step === 4 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -194,31 +442,45 @@ export default function NewServiceRequestPage() {
         >
           <div className="bg-white rounded-2xl p-5 shadow-sm mb-5 space-y-3 text-sm">
             {[
+              ["Service", SERVICES.find((s) => s.type === serviceType)?.label],
+              ["Request Type", requestType.replace("_", " ")],
+              ["Applicant", applicantName],
+              ["Phone", contactPhone],
               [
-                "Service Type",
-                services.find((s) => s.type === serviceType)?.label,
+                "Address",
+                `${streetAddress}, ${district}, ${state} - ${pincode}`,
               ],
-              [t("fullName"), name],
-              [t("address"), address],
-              [t("idProof"), idProof || "Not uploaded"],
-              [t("addressProof"), addrProof || "Not uploaded"],
+              ["ID Proof", idProof?.name ?? "Not uploaded"],
+              ["Addr. Proof", addressProof?.name ?? "Not uploaded"],
             ].map(([label, val]) => (
               <div
                 key={String(label)}
                 className="flex justify-between border-b border-gray-50 pb-2 last:border-0"
               >
                 <span className="text-gray-500">{String(label)}</span>
-                <span className="font-semibold text-gray-800 text-right max-w-[55%]">
+                <span className="font-semibold text-gray-800 text-right max-w-[60%] truncate capitalize">
                   {String(val ?? "—")}
                 </span>
               </div>
             ))}
           </div>
+
+          {error && (
+            <p className="text-red-500 text-sm text-center mb-3">{error}</p>
+          )}
+
           <button
             onClick={handleSubmit}
-            className="w-full py-3.5 rounded-xl bg-[#16A34A] text-white font-bold btn-touch"
+            disabled={loading}
+            className="w-full py-3.5 rounded-xl bg-[#16A34A] text-white font-bold btn-touch flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            {t("submit")} Application
+            {loading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" /> Submitting…
+              </>
+            ) : (
+              `${t("submit")} Application`
+            )}
           </button>
         </motion.div>
       )}

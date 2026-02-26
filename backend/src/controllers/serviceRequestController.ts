@@ -1,0 +1,215 @@
+/// <reference path="../types/express.d.ts" />
+import { Request, Response, NextFunction } from "express";
+import path from "path";
+import { ServiceRequest } from "../models/ServiceRequest";
+import { Department } from "../models/Department";
+import { District } from "../models/District";
+import { generateRefNumber } from "../utils/generateRefNumber";
+
+// Service type → department code mapping
+const SERVICE_CODE: Record<string, string> = {
+  electricity: "ELEC",
+  water: "WATER",
+  gas: "GAS",
+  sanitation: "SANITATION",
+  waste_management: "WASTE",
+};
+
+// ─── POST /api/service-requests ───────────────────────────────────────────────
+export const submitServiceRequest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const {
+      serviceType,
+      requestType = "new_connection",
+      applicantName,
+      contactPhone,
+      streetAddress = "-",
+      city,
+      state = "Haryana",
+      pincode = "000000",
+      districtName,
+      additionalNotes,
+    } = req.body as {
+      serviceType?: string;
+      requestType?: string;
+      applicantName?: string;
+      contactPhone?: string;
+      streetAddress?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+      districtName?: string;
+      additionalNotes?: string;
+    };
+
+    // ── Validate ───────────────────────────────────────────────────────────────
+    if (
+      !serviceType ||
+      !applicantName ||
+      !contactPhone ||
+      !districtName ||
+      !city
+    ) {
+      res.status(400).json({
+        success: false,
+        message:
+          "serviceType, applicantName, contactPhone, city, and districtName are required.",
+      });
+      return;
+    }
+
+    const deptCode = SERVICE_CODE[serviceType];
+    if (!deptCode) {
+      res.status(400).json({
+        success: false,
+        message: `Unknown service type '${serviceType}'.`,
+      });
+      return;
+    }
+
+    // ── Resolve Department & District ──────────────────────────────────────────
+    const [department, district] = await Promise.all([
+      Department.findOne({ code: deptCode }),
+      District.findOne({ name: new RegExp(`^${districtName}$`, "i") }),
+    ]);
+
+    if (!department) {
+      res.status(404).json({
+        success: false,
+        message: `Department for '${serviceType}' not found.`,
+      });
+      return;
+    }
+    if (!district) {
+      res.status(404).json({
+        success: false,
+        message: `District '${districtName}' not found.`,
+      });
+      return;
+    }
+
+    // ── Documents uploaded via multer ──────────────────────────────────────────
+    // multer.fields() stores files as { fieldname: File[] }, not a flat array
+    const filesDict =
+      (
+        req as Request & {
+          files?: { [fieldname: string]: Express.Multer.File[] };
+        }
+      ).files ?? {};
+    const uploadedFiles = Object.values(filesDict).flat();
+
+    const documents = uploadedFiles.map((f) => ({
+      type: f.fieldname as
+        | "id_proof"
+        | "address_proof"
+        | "property_document"
+        | "other",
+      url: `/uploads/service-requests/${f.filename}`,
+      name: f.originalname,
+    }));
+
+    // ── Reference number ──────────────────────────────────────────────────────
+    const referenceNumber = await generateRefNumber("SRQ", ServiceRequest);
+
+    // ── Create record ─────────────────────────────────────────────────────────
+    const sr = await ServiceRequest.create({
+      userId: req.user!.id,
+      department: department._id,
+      district: district._id,
+      referenceNumber,
+      serviceType,
+      requestType,
+      applicantName,
+      contactPhone,
+      address: {
+        houseNo: "-",
+        street: streetAddress,
+        city,
+        state,
+        pincode,
+      },
+      documents,
+      additionalNotes,
+      applicationFee: 0, // fee defined later in Group D (Razorpay)
+      status: "submitted",
+      statusHistory: [
+        {
+          status: "submitted",
+          note: "Service request submitted by citizen.",
+          timestamp: new Date(),
+        },
+      ],
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Service request submitted successfully.",
+      serviceRequest: {
+        id: sr._id,
+        referenceNumber: sr.referenceNumber,
+        status: sr.status,
+        serviceType: sr.serviceType,
+        requestType: sr.requestType,
+        department: department.name,
+        district: district.name,
+        createdAt: sr.createdAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /api/service-requests/my ────────────────────────────────────────────
+export const getMyServiceRequests = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const serviceRequests = await ServiceRequest.find({ userId: req.user!.id })
+      .sort({ createdAt: -1 })
+      .populate("department", "name code")
+      .populate("district", "name state")
+      .lean();
+
+    res.status(200).json({ success: true, serviceRequests });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /api/service-requests/:id ───────────────────────────────────────────
+export const getServiceRequestById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const sr = await ServiceRequest.findById(req.params.id)
+      .populate("department", "name code")
+      .populate("district", "name state")
+      .lean();
+
+    if (!sr) {
+      res
+        .status(404)
+        .json({ success: false, message: "Service request not found." });
+      return;
+    }
+
+    // Citizens can only view their own
+    if (req.user!.role === "citizen" && sr.userId.toString() !== req.user!.id) {
+      res.status(403).json({ success: false, message: "Access denied." });
+      return;
+    }
+
+    res.status(200).json({ success: true, serviceRequest: sr });
+  } catch (err) {
+    next(err);
+  }
+};
