@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800;900&display=swap');
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default;
+}
+
+@theme {
+  --color-civic-navy: #1E3A5F;
+  --color-civic-blue: #2563EB;
+  --color-civic-green: #16A34A;
+  --color-civic-orange: #EA580C;
+  --color-civic-red: #DC2626;
+  --color-civic-lavender: #EEF0FB;
+  --color-civic-card: #F8F9FF;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+}
+
+/* ── Kiosk Base ─────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-civic-lavender);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+/* ── daisyUI theme overrides ────────────────── */
+:root {
+  --p: 35 91% 33%;
+  --pf: 35 91% 28%;
+  --pc: 0 0% 100%;
+  --s: 142 70% 35%;
+  --sf: 142 70% 28%;
+  --sc: 0 0% 100%;
+  --a: 24 95% 47%;
+  --af: 24 95% 38%;
+  --ac: 0 0% 100%;
+  --n: 217 53% 24%;
+  --nf: 217 53% 17%;
+  --nc: 0 0% 100%;
+  --b1: 232 60% 97%;
+  --b2: 225 50% 94%;
+  --b3: 220 40% 90%;
+  --bc: 217 53% 15%;
+}
+
+/* ── Scrollbar ──────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c4c9e2; border-radius: 4px; }
+
+/* ── Typography helpers ─────────────────────── */
+.font-display { font-family: var(--font-display); }
+
+/* ── Page Wrapper ───────────────────────────── */
+.page-wrapper {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Kiosk Card ─────────────────────────────── */
+.kiosk-card {
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 24px rgba(30, 58, 95, 0.08);
+  padding: 1.5rem;
+}
+
+/* ── Touch Button scale ─────────────────────── */
+.btn-touch {
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 0.875rem;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.btn-touch:active { transform: scale(0.97); }
+
+/* ── Gradient backgrounds ───────────────────── */
+.bg-civic-navy-gradient {
+  background: linear-gradient(135deg, #0f2444 0%, #1E3A5F 50%, #1a4a7a 100%);
+}
+.bg-splash-gradient {
+  background: linear-gradient(160deg, #0d1f40 0%, #1E3A5F 40%, #2d4f7c 70%, #3b5fa0 100%);
+}
+
+/* ── Status badge overrides ─────────────────── */
+.badge-pending   { background: #FEF3C7; color: #92400E; }
+.badge-progress  { background: #DBEAFE; color: #1E40AF; }
+.badge-resolved  { background: #D1FAE5; color: #065F46; }
+.badge-rejected  { background: #FEE2E2; color: #991B1B; }
+
+/* ── Leaflet overrides ──────────────────────── */
+.leaflet-container {
+  border-radius: 1rem;
+  font-family: var(--font-sans) !important;
+}
