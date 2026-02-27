@@ -18,7 +18,7 @@ export default function CitizenNavBar() {
           <h1 className="text-xl font-bold font-display leading-tight">
             {user?.name ?? "Citizen"}
           </h1>
-          <p className="text-sm text-blue-200">{user?.phone ?? ""}</p>
+          <p className="text-sm text-blue-200">{user?.mobile ?? ""}</p>
         </div>
         <div className="flex gap-2 items-center mt-1">
           <button

@@ -180,6 +180,7 @@ export interface AdminStats {
   resolved: number;
   rejected: number;
   totalSR: number;
+  pendingBills?: number;
 }
 
 export const getAdminStats = () =>
@@ -325,6 +326,30 @@ export const getServiceRequestById = (id: string) =>
 
 // ── Heatmap ────────────────────────────────────────────────────────────────────
 
+// Help & Support
+export interface EmergencyContact {
+  id: string;
+  name: string;
+  number: string;
+  email: string;
+  icon: "shield" | "help-circle";
+  color: string;
+}
+
+export interface ImportantContact {
+  id: string;
+  name: string;
+  number: string;
+  email: string;
+}
+
+export const getHelpContacts = () =>
+  request<{
+    success: boolean;
+    emergencyContacts: EmergencyContact[];
+    importantContacts: ImportantContact[];
+  }>("/help/contacts");
+
 export interface HeatmapDistrict {
   districtId: string;
   name: string;
@@ -348,3 +373,198 @@ export const getHeatmap = (params?: {
     `/complaints/heatmap${qs.toString() ? `?${qs}` : ""}`,
   );
 };
+
+// Payments (Citizen)
+export type PaymentFor = "bill" | "service_request";
+export type PaymentMethod = "upi" | "card" | "netbanking";
+export type PaymentStatus = "initiated" | "success" | "failed" | "refunded";
+
+export interface PaymentSummary {
+  id: string;
+  paymentFor: PaymentFor;
+  amount: number;
+  status: PaymentStatus;
+  method?: PaymentMethod;
+  receiptNumber: string;
+  receiptUrl?: string;
+  paidAt?: string;
+}
+
+export interface CreatePaymentOrderResponse {
+  success: boolean;
+  message: string;
+  keyId: string;
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+    receipt: string;
+  };
+  payment: {
+    id: string;
+    paymentFor: PaymentFor;
+    amount: number;
+    status: PaymentStatus;
+    receiptNumber: string;
+  };
+}
+
+export interface VerifyPaymentResponse {
+  success: boolean;
+  message: string;
+  payment: PaymentSummary;
+}
+
+export interface CitizenPayment {
+  _id: string;
+  paymentFor: PaymentFor;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  method?: PaymentMethod;
+  receiptNumber: string;
+  receiptUrl?: string;
+  paidAt?: string;
+  createdAt: string;
+  razorpayOrderId: string;
+  razorpayPaymentId?: string;
+}
+
+export const getRazorpayKey = () =>
+  request<{ success: boolean; keyId: string }>("/payments/key");
+
+export const createPaymentOrder = (payload: {
+  paymentFor: PaymentFor;
+  billId?: string;
+  serviceRequestId?: string;
+}) =>
+  request<CreatePaymentOrderResponse>("/payments/orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const verifyPayment = (payload: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}) =>
+  request<VerifyPaymentResponse>("/payments/verify", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const markPaymentFailure = (payload: {
+  razorpay_order_id: string;
+  reason?: string;
+}) =>
+  request<{ success: boolean; message: string }>("/payments/failure", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const getMyPayments = () =>
+  request<{ success: boolean; payments: CitizenPayment[] }>("/payments/my");
+
+export const getPaymentById = (id: string) =>
+  request<{ success: boolean; payment: CitizenPayment }>(`/payments/${id}`);
+
+// Bills (Citizen)
+export type BillStatus = "pending" | "paid" | "overdue";
+
+export interface CitizenBill {
+  _id: string;
+  connectionNumber: string;
+  billNumber: string;
+  billingPeriod: {
+    from: string;
+    to: string;
+    label: string;
+  };
+  previousBalance: number;
+  currentCharges: number;
+  taxes: number;
+  amount: number;
+  units?: number;
+  dueDate: string;
+  status: BillStatus;
+  paidAt?: string;
+  paymentId?: string;
+  department?: { name: string; code: string };
+  district?: { name: string; state: string };
+  createdAt: string;
+}
+
+export const getMyBills = (status?: BillStatus) =>
+  request<{ success: boolean; bills: CitizenBill[] }>(
+    `/bills/my${status ? `?status=${status}` : ""}`,
+  );
+
+export const getBillById = (id: string) =>
+  request<{ success: boolean; bill: CitizenBill }>(`/bills/${id}`);
+
+// Admin Bills
+export interface AdminBillUser {
+  _id: string;
+  name: string;
+  mobile: string;
+}
+
+export interface AdminBillDepartment {
+  _id: string;
+  name: string;
+  code: string;
+}
+
+export interface AdminBill {
+  _id: string;
+  billNumber: string;
+  connectionNumber: string;
+  amount: number;
+  dueDate: string;
+  status: "pending" | "paid" | "overdue";
+  billingPeriod: { from: string; to: string; label: string };
+  userId: { _id: string; name: string; mobile: string };
+  department: { _id: string; name: string; code: string };
+  district?: { _id: string; name: string; state: string };
+  createdAt: string;
+}
+
+export const getAdminBillMeta = () =>
+  request<{
+    success: boolean;
+    users: AdminBillUser[];
+    departments: AdminBillDepartment[];
+  }>("/admin/bills/meta");
+
+export const getAdminBills = (params?: {
+  status?: "pending" | "paid" | "overdue" | "all";
+  userId?: string;
+  departmentId?: string;
+  search?: string;
+  page?: number;
+}) => {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.userId) qs.set("userId", params.userId);
+  if (params?.departmentId) qs.set("departmentId", params.departmentId);
+  if (params?.search) qs.set("search", params.search);
+  if (params?.page) qs.set("page", String(params.page));
+
+  return request<{
+    success: boolean;
+    bills: AdminBill[];
+    pagination: { total: number; pages: number; page: number };
+  }>(`/admin/bills?${qs}`);
+};
+
+export const createAdminBill = (payload: {
+  userId: string;
+  departmentId: string;
+  amount: number;
+  dueDate?: string;
+}) =>
+  request<{ success: boolean; message: string; bill: AdminBill }>("/admin/bills", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+

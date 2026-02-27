@@ -43,7 +43,7 @@ export default function ProfilePage() {
         <h2 className="text-xl font-bold text-gray-800">
           {user?.name ?? "Citizen"}
         </h2>
-        <p className="text-sm text-gray-500">{user?.phone ?? ""}</p>
+        <p className="text-sm text-gray-500">{user?.mobile ?? ""}</p>
       </motion.div>
 
       {/* Account Details */}
@@ -60,9 +60,9 @@ export default function ProfilePage() {
         </div>
         {[
           { icon: User, label: "Full Name", val: user?.name },
-          { icon: Phone, label: "Mobile", val: user?.phone },
+          { icon: Phone, label: "Mobile", val: user?.mobile },
           { icon: Mail, label: "Email", val: user?.email },
-          { icon: MapPin, label: "Address", val: user?.address },
+          { icon: MapPin, label: "District", val: user?.district },
           { icon: Calendar, label: "Registered", val: "01 Mar 2024" },
         ].map(({ icon: Icon, label, val }) => (
           <div

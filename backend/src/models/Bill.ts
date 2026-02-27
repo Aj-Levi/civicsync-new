@@ -29,6 +29,7 @@ export interface IBill extends Document {
 
   paidAt?: Date;
   paymentId?: Types.ObjectId; // ref: 'Payment', set after successful payment
+  gatewayPaymentId?: string; // Razorpay payment id (e.g. pay_xxxxx)
 
   createdAt: Date;
   updatedAt: Date;
@@ -70,6 +71,7 @@ const billSchema = new Schema<IBill>(
 
     paidAt: { type: Date },
     paymentId: { type: Schema.Types.ObjectId, ref: "Payment" },
+    gatewayPaymentId: { type: String, trim: true },
   },
   { timestamps: true },
 );

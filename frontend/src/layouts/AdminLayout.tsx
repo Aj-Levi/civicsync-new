@@ -6,6 +6,7 @@ import {
   Bell,
   Map,
   LogOut,
+  Receipt,
 } from "lucide-react";
 import { useSessionStore } from "../store/sessionStore";
 
@@ -13,12 +14,8 @@ const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/complaints", icon: FileText, label: "Complaints", end: false },
   { to: "/admin/requests", icon: Settings, label: "Requests", end: false },
-  {
-    to: "/admin/notifications",
-    icon: Bell,
-    label: "Notifications",
-    end: false,
-  },
+  { to: "/admin/bills", icon: Receipt, label: "Bills", end: false },
+  { to: "/admin/notifications", icon: Bell, label: "Notifications", end: false },
   { to: "/admin/map", icon: Map, label: "Map View", end: false },
 ];
 
@@ -33,7 +30,6 @@ export default function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
       <aside className="w-64 min-h-screen bg-[#1E3A5F] text-white flex flex-col">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -42,9 +38,7 @@ export default function AdminLayout() {
             </div>
             <div>
               <p className="font-semibold text-sm">{user?.name ?? "Admin"}</p>
-              <p className="text-xs text-blue-200">
-                {user?.department ?? "Municipal"}
-              </p>
+              <p className="text-xs text-blue-200">{String(user?.department ?? "Municipal")}</p>
             </div>
           </div>
         </div>
@@ -80,7 +74,6 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Content */}
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
