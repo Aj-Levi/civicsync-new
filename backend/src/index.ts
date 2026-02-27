@@ -14,6 +14,7 @@ import serviceRequestRoutes from "./routes/serviceRequestRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import billRoutes from "./routes/billRoutes";
 import helpRoutes from "./routes/helpRoutes";
+import headAdminRoutes from "./routes/headAdminRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -39,6 +40,7 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminAuthRoutes);
+app.use("/api/admin", headAdminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);

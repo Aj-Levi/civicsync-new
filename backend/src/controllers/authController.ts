@@ -61,12 +61,15 @@ export const sendOTP = async (
 
     await user.save();
 
-    // ⚠️ DEV ONLY — log OTP to console instead of sending SMS
-    console.log(`\n🔐 [DEV] OTP for ${mobile} → ${plain}\n`);
+    // DEV: print OTP loudly in console and optionally return it in response.
+    process.stdout.write(`\n[DEV OTP][CITIZEN] ${mobile} -> ${plain}\n`);
+    process.stderr.write(`\n[DEV OTP][CITIZEN] ${mobile} -> ${plain}\n`);
 
-    res
-      .status(200)
-      .json({ success: true, message: "OTP generated. Check server console." });
+    res.status(200).json({
+      success: true,
+      message: "OTP generated. Check server console.",
+      devOtp: plain,
+    });
   } catch (err) {
     next(err);
   }

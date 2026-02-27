@@ -2,7 +2,12 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 export type Language = "en" | "hi" | "pa";
-export type UserRole = "citizen" | "admin" | "superadmin" | "guest";
+export type UserRole =
+  | "citizen"
+  | "admin"
+  | "superadmin"
+  | "head_admin"
+  | "guest";
 
 interface SessionUser {
   id: string;
@@ -10,7 +15,7 @@ interface SessionUser {
   mobile?: string;
   email?: string;
   username?: string;
-  role?: string;
+  role?: UserRole;
   district?: string;
   department?: unknown;
   preferredLanguage?: string;
@@ -22,10 +27,9 @@ interface SessionState {
   user: SessionUser | null;
   language: Language;
 
-  // Called after OTP verified — sets citizen session from API response
   setCitizenSession: (user: SessionUser) => void;
-  // Called after admin login — sets admin session from API response
   setAdminSession: (user: SessionUser) => void;
+  setHeadAdminSession: (user: SessionUser) => void;
 
   loginGuest: () => void;
   logout: () => Promise<void>;
@@ -43,7 +47,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setAdminSession: (user: SessionUser) => {
-    set({ isAuthenticated: true, role: "admin", user });
+    set({
+      isAuthenticated: true,
+      role: user.role === "superadmin" ? "superadmin" : "admin",
+      user,
+    });
+  },
+
+  setHeadAdminSession: (user: SessionUser) => {
+    set({ isAuthenticated: true, role: "head_admin", user });
   },
 
   loginGuest: () => {
@@ -55,6 +67,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const { role } = get();
       if (role === "admin" || role === "superadmin") {
         await api.adminLogout();
+      } else if (role === "head_admin") {
+        await api.headAdminLogout();
       } else {
         await api.logout();
       }

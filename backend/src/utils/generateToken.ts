@@ -3,7 +3,7 @@ import { Response } from "express";
 
 export interface TokenPayload {
   id: string;
-  role: "citizen" | "admin" | "superadmin";
+  role: "citizen" | "admin" | "superadmin" | "head_admin";
   districtId: string;
   departmentId?: string; // admin only
 }

@@ -88,6 +88,101 @@ export const adminLogout = () => request("/admin/logout", { method: "POST" });
 
 export const adminGetMe = () => request("/admin/me");
 
+// Head Admin
+export const sendHeadAdminOTP = (mobile: string) =>
+  request<{ success: boolean; message: string }>("/admin/head-admin/send-otp", {
+    method: "POST",
+    body: JSON.stringify({ mobile }),
+  });
+
+export const verifyHeadAdminOTP = (mobile: string, otp: string) =>
+  request<{
+    success: boolean;
+    message: string;
+    admin: {
+      id: string;
+      name: string;
+      mobile: string;
+      role: "head_admin";
+    };
+  }>("/admin/head-admin/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ mobile, otp }),
+  });
+
+export const headAdminLogout = () =>
+  request("/admin/head-admin/logout", { method: "POST" });
+
+export interface HeadAdminDepartment {
+  _id: string;
+  name: string;
+  code: string;
+}
+
+export interface HeadAdminDepartmentAdmin {
+  _id: string;
+  name: string;
+  username: string;
+  email: string;
+  isActive: boolean;
+  createdAt: string;
+  department: { _id: string; name: string; code: string };
+  district: { _id: string; name: string; state: string };
+}
+
+export interface HeadAdminFeedback {
+  _id: string;
+  trigger: string;
+  overallRating: number;
+  categoryRatings: { label: string; rating: number }[];
+  comment?: string;
+  language: string;
+  createdAt: string;
+  userId?: { _id: string; name: string; mobile: string };
+  department?: { _id: string; name: string; code: string };
+  district?: { _id: string; name: string; state: string };
+}
+
+export const getHeadAdminMeta = () =>
+  request<{
+    success: boolean;
+    departments: HeadAdminDepartment[];
+    defaultDistrict: { id: string; name: string; state: string } | null;
+  }>("/admin/head-admin/meta");
+
+export const getDepartmentAdmins = () =>
+  request<{ success: boolean; admins: HeadAdminDepartmentAdmin[] }>(
+    "/admin/head-admin/department-admins",
+  );
+
+export const createDepartmentAdmin = (payload: {
+  departmentId: string;
+  username: string;
+  password: string;
+  name?: string;
+}) =>
+  request<{
+    success: boolean;
+    message: string;
+    admin: HeadAdminDepartmentAdmin;
+  }>("/admin/head-admin/department-admins", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const removeDepartmentAdmin = (adminId: string) =>
+  request<{ success: boolean; message: string }>(
+    `/admin/head-admin/department-admins/${adminId}`,
+    { method: "DELETE" },
+  );
+
+export const getHeadAdminFeedbacks = (page = 1) =>
+  request<{
+    success: boolean;
+    feedbacks: HeadAdminFeedback[];
+    pagination: { total: number; pages: number; page: number };
+  }>(`/admin/head-admin/feedbacks?page=${page}`);
+
 // ── Complaints ─────────────────────────────────────────────────────────────────
 
 export interface ComplaintPayload {
