@@ -1,7 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { authGuard } from "../middleware/authGuard";
 import { roleGuard } from "../middleware/roleGuard";
 import {
@@ -11,20 +9,9 @@ import {
   getHeatmap,
 } from "../controllers/complaintController";
 
-// ── Multer disk storage ────────────────────────────────────────────────────────
-const UPLOAD_DIR = path.join(process.cwd(), "uploads", "complaints");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
-
+// Use memory storage so controller can upload file buffers directly to Cloudinary.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -32,16 +19,15 @@ const upload = multer({
   },
 });
 
-// ── Routes ─────────────────────────────────────────────────────────────────────
 const router = Router();
 
-// Public — no auth required (heatmap is public data)
+// Public - no auth required (heatmap is public data)
 router.get("/heatmap", getHeatmap);
 
 // All remaining complaint routes require authentication
 router.use(authGuard);
 
-// Submit a new complaint (citizens only) — multipart/form-data with optional `photo`
+// Submit a new complaint (citizens only) - multipart/form-data with optional `photo`
 router.post("/", roleGuard("citizen"), upload.single("photo"), submitComplaint);
 
 // Get all complaints filed by the current citizen

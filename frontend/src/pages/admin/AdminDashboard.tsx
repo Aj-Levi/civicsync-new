@@ -166,11 +166,8 @@ export default function AdminDashboard() {
                     to: "/admin/complaints",
                     bg: "bg-blue-600",
                   },
-                  {
-                    label: "Service Requests",
-                    to: "/admin/requests",
-                    bg: "bg-purple-600",
-                  },
+                  { label: "Service Requests", to: "/admin/requests", bg: "bg-purple-600" },
+                  { label: "Manage Bills", to: "/admin/bills", bg: "bg-indigo-600" },
                   {
                     label: "Push Notification",
                     to: "/admin/notifications",
@@ -272,3 +269,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

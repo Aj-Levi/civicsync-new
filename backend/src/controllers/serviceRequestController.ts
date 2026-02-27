@@ -1,12 +1,12 @@
 /// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
-import path from "path";
 import { ServiceRequest } from "../models/ServiceRequest";
 import { Department } from "../models/Department";
 import { District } from "../models/District";
 import { generateRefNumber } from "../utils/generateRefNumber";
+import { uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
-// Service type → department code mapping
+// Service type -> department code mapping
 const SERVICE_CODE: Record<string, string> = {
   electricity: "ELEC",
   water: "WATER",
@@ -15,7 +15,6 @@ const SERVICE_CODE: Record<string, string> = {
   waste_management: "WASTE",
 };
 
-// ─── POST /api/service-requests ───────────────────────────────────────────────
 export const submitServiceRequest = async (
   req: Request,
   res: Response,
@@ -46,7 +45,6 @@ export const submitServiceRequest = async (
       additionalNotes?: string;
     };
 
-    // ── Validate ───────────────────────────────────────────────────────────────
     if (
       !serviceType ||
       !applicantName ||
@@ -71,7 +69,6 @@ export const submitServiceRequest = async (
       return;
     }
 
-    // ── Resolve Department & District ──────────────────────────────────────────
     const [department, district] = await Promise.all([
       Department.findOne({ code: deptCode }),
       District.findOne({ name: new RegExp(`^${districtName}$`, "i") }),
@@ -92,30 +89,31 @@ export const submitServiceRequest = async (
       return;
     }
 
-    // ── Documents uploaded via multer ──────────────────────────────────────────
-    // multer.fields() stores files as { fieldname: File[] }, not a flat array
     const filesDict =
       (
         req as Request & {
           files?: { [fieldname: string]: Express.Multer.File[] };
         }
       ).files ?? {};
-    const uploadedFiles = Object.values(filesDict).flat();
+    const uploadedFiles = Object.values(filesDict).flat() as Express.Multer.File[];
 
-    const documents = uploadedFiles.map((f) => ({
-      type: f.fieldname as
-        | "id_proof"
-        | "address_proof"
-        | "property_document"
-        | "other",
-      url: `/uploads/service-requests/${f.filename}`,
-      name: f.originalname,
-    }));
+    const documents = await Promise.all(
+      uploadedFiles.map(async (f) => {
+        const url = await uploadBufferToCloudinary(f, "service-requests");
+        return {
+          type: f.fieldname as
+            | "id_proof"
+            | "address_proof"
+            | "property_document"
+            | "other",
+          url,
+          name: f.originalname,
+        };
+      }),
+    );
 
-    // ── Reference number ──────────────────────────────────────────────────────
     const referenceNumber = await generateRefNumber("SRQ", ServiceRequest);
 
-    // ── Create record ─────────────────────────────────────────────────────────
     const sr = await ServiceRequest.create({
       userId: req.user!.id,
       department: department._id,
@@ -134,7 +132,7 @@ export const submitServiceRequest = async (
       },
       documents,
       additionalNotes,
-      applicationFee: 0, // fee defined later in Group D (Razorpay)
+      applicationFee: 0,
       status: "submitted",
       statusHistory: [
         {
@@ -164,7 +162,6 @@ export const submitServiceRequest = async (
   }
 };
 
-// ─── GET /api/service-requests/my ────────────────────────────────────────────
 export const getMyServiceRequests = async (
   req: Request,
   res: Response,
@@ -183,7 +180,6 @@ export const getMyServiceRequests = async (
   }
 };
 
-// ─── GET /api/service-requests/:id ───────────────────────────────────────────
 export const getServiceRequestById = async (
   req: Request,
   res: Response,
@@ -202,7 +198,6 @@ export const getServiceRequestById = async (
       return;
     }
 
-    // Citizens can only view their own
     if (req.user!.role === "citizen" && sr.userId.toString() !== req.user!.id) {
       res.status(403).json({ success: false, message: "Access denied." });
       return;
@@ -213,3 +208,4 @@ export const getServiceRequestById = async (
     next(err);
   }
 };
+

@@ -1,12 +1,11 @@
 /// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
-import path from "path";
 import { Department } from "../models/Department";
 import { District } from "../models/District";
 import { Complaint } from "../models/Complaint";
 import { generateRefNumber } from "../utils/generateRefNumber";
+import { uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
-// ─── POST /api/complaints ─────────────────────────────────────────────────────
 export const submitComplaint = async (
   req: Request,
   res: Response,
@@ -37,7 +36,6 @@ export const submitComplaint = async (
       districtName?: string;
     };
 
-    // ── Validate required fields ───────────────────────────────────────────────
     if (!departmentCode || !category || !description) {
       res.status(400).json({
         success: false,
@@ -54,7 +52,6 @@ export const submitComplaint = async (
       return;
     }
 
-    // ── Resolve Department ─────────────────────────────────────────────────────
     const department = await Department.findOne({
       code: departmentCode.toUpperCase(),
     });
@@ -66,7 +63,6 @@ export const submitComplaint = async (
       return;
     }
 
-    // ── Resolve District ───────────────────────────────────────────────────────
     const district = await District.findOne({
       name: new RegExp(`^${districtName}$`, "i"),
     });
@@ -78,24 +74,19 @@ export const submitComplaint = async (
       return;
     }
 
-    // ── Photo URL ──────────────────────────────────────────────────────────────
-    // If a file was uploaded via multer, serve it from /uploads; otherwise use placeholder.
-    let photoUrl = "/uploads/placeholder.png";
+    let photoUrl = "";
     const file = (req as Request & { file?: Express.Multer.File }).file;
     if (file) {
-      photoUrl = `/uploads/complaints/${file.filename}`;
+      photoUrl = await uploadBufferToCloudinary(file, "complaints");
     }
 
-    // ── Reference Number ───────────────────────────────────────────────────────
     const referenceNumber = await generateRefNumber("COMP");
 
-    // ── Build GeoJSON location from district coordinates ───────────────────────
     const coords = district.coordinates ?? {
       longitude: 76.9905,
       latitude: 29.6857,
     };
 
-    // ── Create Complaint ───────────────────────────────────────────────────────
     const complaint = await Complaint.create({
       userId,
       department: department._id,
@@ -146,7 +137,6 @@ export const submitComplaint = async (
   }
 };
 
-// ─── GET /api/complaints/my ───────────────────────────────────────────────────
 export const getMyComplaints = async (
   req: Request,
   res: Response,
@@ -165,7 +155,6 @@ export const getMyComplaints = async (
   }
 };
 
-// ─── GET /api/complaints/:refNumber ──────────────────────────────────────────
 export const getComplaintByRef = async (
   req: Request,
   res: Response,
@@ -183,7 +172,6 @@ export const getComplaintByRef = async (
       return;
     }
 
-    // Citizens can only view their own complaints
     if (
       req.user!.role === "citizen" &&
       complaint.userId.toString() !== req.user!.id
@@ -198,12 +186,11 @@ export const getComplaintByRef = async (
   }
 };
 
-// ─── GET /api/complaints/heatmap ──────────────────────────────────────────────
-// Aggregates complaints by district — returns count, top category, and coords.
+// Aggregates complaints by district and returns count, top category, and coords.
 // Query params:
-//   districtId  — filter to a specific district ObjectId
-//   days        — look back N days (default 30)
-//   category    — filter by category string
+//   districtId - filter to a specific district ObjectId
+//   days       - look back N days (default 30)
+//   category   - filter by category string
 export const getHeatmap = async (
   req: Request,
   res: Response,
