@@ -1,0 +1,14 @@
+# Python environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secrets and environment variables
+.env
+
+# Generated data / Vector databases
+faiss_index/
+
+# OS generated files (since you are on a Mac)
+.DS_Store

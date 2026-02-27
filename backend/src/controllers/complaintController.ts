@@ -273,3 +273,36 @@ export const getHeatmap = async (
     next(err);
   }
 };
+
+// ─── GET /api/complaints/district/:districtName ───────────────────────────────
+// Returns descriptions of all complaints in the specified district
+export const getDistrictComplaints = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { districtName } = req.params;
+
+    // Find the district by name (case-insensitive)
+    const district = await District.findOne({
+      name: new RegExp(`^${districtName}$`, "i"),
+    });
+
+    if (!district) {
+      res.status(404).json({ success: false, message: "District not found." });
+      return;
+    }
+
+    // Find all complaints for this district and just select the description
+    const complaints = await Complaint.find({ district: district._id })
+      .select("description")
+      .lean();
+
+    const descriptions = complaints.map((c) => c.description);
+
+    res.status(200).json({ success: true, descriptions });
+  } catch (err) {
+    next(err);
+  }
+};

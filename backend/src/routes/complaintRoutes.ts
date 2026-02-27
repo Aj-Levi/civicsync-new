@@ -9,6 +9,7 @@ import {
   getMyComplaints,
   getComplaintByRef,
   getHeatmap,
+  getDistrictComplaints,
 } from "../controllers/complaintController";
 
 // ── Multer disk storage ────────────────────────────────────────────────────────
@@ -40,6 +41,13 @@ router.get("/heatmap", getHeatmap);
 
 // All remaining complaint routes require authentication
 router.use(authGuard);
+
+// Get complaints by district (requires auth, but any citizen can check duplicates)
+router.get(
+  "/district/:districtName",
+  roleGuard("citizen"),
+  getDistrictComplaints,
+);
 
 // Submit a new complaint (citizens only) — multipart/form-data with optional `photo`
 router.post("/", roleGuard("citizen"), upload.single("photo"), submitComplaint);
