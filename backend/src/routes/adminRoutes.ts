@@ -8,23 +8,26 @@ import {
   escalateComplaintPriority,
   getAdminServiceRequests,
   updateServiceRequestStatus,
+  getAdminBillMeta,
+  createAdminBill,
+  getAdminBills,
 } from "../controllers/adminController";
 
 const router = Router();
 
-// All admin routes require authentication + admin role
 router.use(authGuard, roleGuard("admin", "superadmin"));
 
-// ── Dashboard stats ────────────────────────────────────────────────────────────
 router.get("/stats", getAdminStats);
 
-// ── Complaints ─────────────────────────────────────────────────────────────────
 router.get("/complaints", getAdminComplaints);
 router.patch("/complaints/:id/status", updateComplaintStatus);
 router.patch("/complaints/:id/priority", escalateComplaintPriority);
 
-// ── Service requests ───────────────────────────────────────────────────────────
 router.get("/service-requests", getAdminServiceRequests);
 router.patch("/service-requests/:id/status", updateServiceRequestStatus);
+
+router.get("/bills/meta", getAdminBillMeta);
+router.get("/bills", getAdminBills);
+router.post("/bills", createAdminBill);
 
 export default router;

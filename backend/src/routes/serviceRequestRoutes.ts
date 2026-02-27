@@ -1,7 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { authGuard } from "../middleware/authGuard";
 import { roleGuard } from "../middleware/roleGuard";
 import {
@@ -10,20 +8,9 @@ import {
   getServiceRequestById,
 } from "../controllers/serviceRequestController";
 
-// ── Multer disk storage ────────────────────────────────────────────────────────
-const UPLOAD_DIR = path.join(process.cwd(), "uploads", "service-requests");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
-
+// Use memory storage so controller can upload file buffers directly to Cloudinary.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
   fileFilter: (_req, file, cb) => {
     const allowed = [
@@ -38,7 +25,6 @@ const upload = multer({
   },
 });
 
-// ── Routes ─────────────────────────────────────────────────────────────────────
 const router = Router();
 
 router.use(authGuard);

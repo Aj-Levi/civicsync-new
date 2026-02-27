@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -12,9 +13,15 @@ import {
   MapPin,
 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
-import { dummyBills, dummyRecentActivity } from "../../data/dummyData";
+import { dummyRecentActivity } from "../../data/dummyData";
+import { getMyBills, type CitizenBill } from "../../lib/api";
 
-const billConfig = {
+type BillCategory = "electricity" | "water" | "gas" | "waste";
+
+const billConfig: Record<
+  BillCategory,
+  { icon: React.ComponentType<{ size?: number; className?: string }>; color: string }
+> = {
   electricity: { icon: Zap, color: "text-yellow-400" },
   water: { icon: Droplets, color: "text-blue-300" },
   gas: { icon: Flame, color: "text-orange-400" },
@@ -64,16 +71,51 @@ const activityIcon = {
   service: PlusCircle,
 };
 
+interface DashboardBill {
+  id: string;
+  category: BillCategory;
+  amount: number;
+}
+
+const mapDepartmentToCategory = (bill: CitizenBill): BillCategory => {
+  const code = bill.department?.code?.toUpperCase() ?? "";
+  if (code === "ELEC") return "electricity";
+  if (code === "WATER") return "water";
+  if (code === "GAS") return "gas";
+  return "waste";
+};
+
 export default function CitizenDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [bills, setBills] = useState<DashboardBill[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await getMyBills();
+        const mapped = res.bills
+          .filter((bill) => bill.status !== "paid")
+          .slice(0, 4)
+          .map((bill) => ({
+            id: bill._id,
+            category: mapDepartmentToCategory(bill),
+            amount: bill.amount,
+          }));
+        setBills(mapped);
+      } catch {
+        setBills([]);
+      }
+    })();
+  }, []);
+
+  const visibleBills = useMemo(() => bills, [bills]);
 
   return (
     <div className="pb-4">
-      {/* Utility Bills Banner */}
       <div className="bg-[#1E3A5F] px-4 pb-5 pt-2">
         <div className="grid grid-cols-4 gap-2 mt-1">
-          {dummyBills.map((bill) => {
+          {visibleBills.map((bill) => {
             const { icon: Icon, color } = billConfig[bill.category];
             return (
               <motion.button
@@ -87,7 +129,7 @@ export default function CitizenDashboard() {
                   {t(bill.category)}
                 </span>
                 <span className="text-sm font-bold text-white">
-                  ₹{bill.amount.toLocaleString("en-IN")}
+                  Rs {bill.amount.toLocaleString("en-IN")}
                 </span>
               </motion.button>
             );
@@ -96,11 +138,8 @@ export default function CitizenDashboard() {
       </div>
 
       <div className="px-4 pt-4 space-y-5">
-        {/* Civic Services */}
         <section>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">
-            {t("civicServices")}
-          </h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">{t("civicServices")}</h2>
           <div className="grid grid-cols-2 gap-3">
             {services.map(({ key, icon: Icon, color, border, bg, to }, i) => (
               <motion.button
@@ -112,14 +151,10 @@ export default function CitizenDashboard() {
                 onClick={() => navigate(to)}
                 className={`bg-white border-2 ${border} rounded-2xl p-4 flex flex-col items-center gap-2 shadow-sm hover:shadow-md transition-shadow`}
               >
-                <div
-                  className={`w-12 h-12 rounded-xl ${bg} flex items-center justify-center`}
-                >
+                <div className={`w-12 h-12 rounded-xl ${bg} flex items-center justify-center`}>
                   <Icon size={26} className={color} />
                 </div>
-                <span
-                  className={`text-sm font-bold ${color} text-center leading-tight`}
-                >
+                <span className={`text-sm font-bold ${color} text-center leading-tight`}>
                   {t(key)}
                 </span>
               </motion.button>
@@ -127,7 +162,6 @@ export default function CitizenDashboard() {
           </div>
         </section>
 
-        {/* Map CTA */}
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => navigate("/citizen/map")}
@@ -137,16 +171,12 @@ export default function CitizenDashboard() {
           {t("viewComplaintMap")}
         </motion.button>
 
-        {/* Recent Activity */}
         <section>
-          <h2 className="text-lg font-bold text-gray-800 mb-3">
-            {t("recentActivity")}
-          </h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-3">{t("recentActivity")}</h2>
           <div className="space-y-2">
             {dummyRecentActivity.map((item, i) => {
               const Icon =
-                activityIcon[item.icon as keyof typeof activityIcon] ??
-                FileText;
+                activityIcon[item.icon as keyof typeof activityIcon] ?? FileText;
               return (
                 <motion.div
                   key={item.id}
@@ -159,9 +189,7 @@ export default function CitizenDashboard() {
                     <Icon size={18} className="text-yellow-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-800 text-sm truncate">
-                      {item.label}
-                    </p>
+                    <p className="font-semibold text-gray-800 text-sm truncate">{item.label}</p>
                     <p className="text-xs text-gray-400">{item.sub}</p>
                   </div>
                   <span className="text-sm font-bold text-gray-700 flex-shrink-0">

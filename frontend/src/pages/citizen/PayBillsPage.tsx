@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Zap, Droplets, Flame, Trash2 } from "lucide-react";
-import { dummyBills, type Bill } from "../../data/dummyData";
 import { useTranslation } from "../../lib/i18n";
+import { getMyBills, type CitizenBill } from "../../lib/api";
 
-type Category = "all" | Bill["category"];
+type Category = "all" | "electricity" | "water" | "gas" | "waste";
 
 const catConfig: Record<
-  string,
+  Exclude<Category, "all">,
   {
     icon: React.ComponentType<{ size?: number; className?: string }>;
     color: string;
@@ -21,15 +21,74 @@ const catConfig: Record<
   waste: { icon: Trash2, color: "text-green-600", bg: "bg-green-50" },
 };
 
+interface UIBill {
+  id: string;
+  category: Exclude<Category, "all">;
+  amount: number;
+  dueDate: string;
+  billingPeriod: string;
+  previousBalance: number;
+  currentCharges: number;
+  taxes: number;
+  status: "pending" | "overdue" | "paid";
+  consumerNo: string;
+}
+
+const mapDepartmentToCategory = (
+  bill: CitizenBill,
+): Exclude<Category, "all"> => {
+  const code = bill.department?.code?.toUpperCase() ?? "";
+  if (code === "ELEC") return "electricity";
+  if (code === "WATER") return "water";
+  if (code === "GAS") return "gas";
+  return "waste";
+};
+
+const mapBillToUI = (bill: CitizenBill): UIBill => ({
+  id: bill._id,
+  category: mapDepartmentToCategory(bill),
+  amount: bill.amount,
+  dueDate: new Date(bill.dueDate).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }),
+  billingPeriod: bill.billingPeriod?.label ?? "-",
+  previousBalance: bill.previousBalance,
+  currentCharges: bill.currentCharges,
+  taxes: bill.taxes,
+  status: bill.status,
+  consumerNo: bill.connectionNumber,
+});
+
 export default function PayBillsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [active, setActive] = useState<Category>("all");
+  const [bills, setBills] = useState<UIBill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered =
-    active === "all"
-      ? dummyBills
-      : dummyBills.filter((b) => b.category === active);
+  useEffect(() => {
+    void (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await getMyBills();
+        const mapped = res.bills.map(mapBillToUI);
+        setBills(mapped.filter((b) => b.status !== "paid"));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load bills.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filtered = useMemo(
+    () => (active === "all" ? bills : bills.filter((b) => b.category === active)),
+    [active, bills],
+  );
 
   const tabs: Category[] = ["all", "electricity", "water", "gas", "waste"];
   const tabLabel: Record<Category, string> = {
@@ -52,7 +111,6 @@ export default function PayBillsPage() {
         <h1 className="text-xl font-bold text-gray-800">{t("pendingBills")}</h1>
       </div>
 
-      {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-none">
         {tabs.map((tab) => (
           <button
@@ -69,7 +127,20 @@ export default function PayBillsPage() {
         ))}
       </div>
 
-      {/* Bill Cards */}
+      {loading && <p className="text-sm text-gray-500">{t("loading")}</p>}
+
+      {error && (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && filtered.length === 0 && (
+        <div className="rounded-xl bg-white p-4 text-sm text-gray-600 shadow-sm">
+          No pending bills found.
+        </div>
+      )}
+
       <div className="space-y-3">
         {filtered.map((bill, i) => {
           const { icon: Icon, color, bg } = catConfig[bill.category];
@@ -108,7 +179,7 @@ export default function PayBillsPage() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-lg font-bold text-gray-800">
-                  ₹{bill.amount.toLocaleString("en-IN")}
+                  Rs {bill.amount.toLocaleString("en-IN")}
                 </p>
                 <button
                   onClick={() => navigate(`/citizen/bills/${bill.id}`)}
