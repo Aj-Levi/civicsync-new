@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   Loader2,
   ChevronDown,
+  User,
+  Users,
 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 import { useSessionStore } from "../../store/sessionStore";
@@ -178,6 +180,9 @@ export default function RegisterComplaintPage() {
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
 
   // Step 2 fields
+  const [complaintScope, setComplaintScope] = useState<
+    "personal" | "locality" | ""
+  >("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -226,7 +231,8 @@ export default function RegisterComplaintPage() {
 
   const goToStep2 = () => {
     setTouched2(true);
-    if (step2Valid(category, description, photoFile)) setStep(3);
+    if (complaintScope !== "" && step2Valid(category, description, photoFile))
+      setStep(3);
   };
 
   const goBack = () => (step > 1 ? setStep((s) => s - 1) : navigate(-1));
@@ -234,11 +240,50 @@ export default function RegisterComplaintPage() {
   const handleSubmit = async () => {
     setTouched3(true);
     if (!step3Valid(streetAddress, state, district, pincode)) return;
-    if (!selectedDept) return;
+    if (!selectedDept || !complaintScope) return;
 
     setLoading(true);
     setSubmitError("");
+
     try {
+      if (complaintScope === "locality") {
+        // Fetch all district complaints to pass to similar-complaint check
+        try {
+          // Use the real API to get previous complaint descriptions for this district
+          const prevCompsRes = await api.getDistrictComplaints(district);
+          const prevComplaints = prevCompsRes.success
+            ? prevCompsRes.descriptions
+            : [];
+
+          const checkRes = await fetch(
+            "http://localhost:8000/similar-complaint",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prev_complaint: prevComplaints,
+                complaint: description,
+              }),
+            },
+          );
+
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (checkData.is_duplicate) {
+              setSubmitError(
+                `This complaint appears to be a duplicate: ${checkData.result}`,
+              );
+              setLoading(false);
+              return; // Halt submission
+            }
+          }
+        } catch (checkErr) {
+          console.error("Duplicate check failed, proceeding anyway", checkErr);
+          // If the AI duplicate check server is unreachable, we can choose to proceed or block.
+          // Proceeding for now.
+        }
+      }
+
       const res = await api.submitComplaint({
         departmentCode: selectedDept.code, // ← uses exact DB code (ELEC, WATER …)
         category,
@@ -373,6 +418,46 @@ export default function RegisterComplaintPage() {
               <span>{selectedDept.icon}</span>
               <span>{selectedDept.name}</span>
             </div>
+
+            {/* Scope selection — required */}
+            <h2 className="text-sm font-semibold text-gray-500 mb-2">
+              Is this a personal or locality issue?{" "}
+              <span className="text-red-400">*</span>
+            </h2>
+            <div className="flex gap-3 mb-1">
+              <button
+                onClick={() => setComplaintScope("personal")}
+                className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                  complaintScope === "personal"
+                    ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                <User size={20} className="mb-1.5" />
+                <span className="text-sm font-semibold">Personal</span>
+                <span className="text-[10px] text-center mt-0.5 opacity-70">
+                  Specific to me/my property
+                </span>
+              </button>
+              <button
+                onClick={() => setComplaintScope("locality")}
+                className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                  complaintScope === "locality"
+                    ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                <Users size={20} className="mb-1.5" />
+                <span className="text-sm font-semibold">Locality</span>
+                <span className="text-[10px] text-center mt-0.5 opacity-70">
+                  Affects the community
+                </span>
+              </button>
+            </div>
+            {touched2 && !complaintScope && (
+              <FieldError msg="Please select whether this is a personal or locality issue." />
+            )}
+            <div className="mb-4" />
 
             {/* Category — required */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
@@ -638,6 +723,11 @@ export default function RegisterComplaintPage() {
               {(
                 [
                   ["Department", `${selectedDept?.icon} ${selectedDept?.name}`],
+                  [
+                    "Scope",
+                    complaintScope.charAt(0).toUpperCase() +
+                      complaintScope.slice(1),
+                  ],
                   ["Category", category],
                   [
                     "Urgency",

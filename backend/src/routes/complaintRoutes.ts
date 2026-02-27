@@ -7,6 +7,7 @@ import {
   getMyComplaints,
   getComplaintByRef,
   getHeatmap,
+  getDistrictComplaints,
 } from "../controllers/complaintController";
 
 // Use memory storage so controller can upload file buffers directly to Cloudinary.
@@ -27,7 +28,14 @@ router.get("/heatmap", getHeatmap);
 // All remaining complaint routes require authentication
 router.use(authGuard);
 
-// Submit a new complaint (citizens only) - multipart/form-data with optional `photo`
+// Get complaints by district (requires auth, but any citizen can check duplicates)
+router.get(
+  "/district/:districtName",
+  roleGuard("citizen"),
+  getDistrictComplaints,
+);
+
+// Submit a new complaint (citizens only) — multipart/form-data with optional `photo`
 router.post("/", roleGuard("citizen"), upload.single("photo"), submitComplaint);
 
 // Get all complaints filed by the current citizen
