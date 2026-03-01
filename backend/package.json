@@ -2,7 +2,7 @@
     "name": "civicsync-backend",
     "version": "1.0.0",
     "description": "CivicSync Express/MongoDB backend",
-    "main": "dist/src/index.js",
+    "main": "dist/index.js",
     "type": "commonjs",
     "scripts": {
         "dev": "nodemon --exec ts-node src/index.ts",
