@@ -7,7 +7,7 @@
     "scripts": {
         "dev": "nodemon --exec ts-node src/index.ts",
         "build": "tsc",
-        "start": "node dist/src/index.js",
+        "start": "node dist/index.js",
         "seed": "ts-node src/scripts/seed.ts",
         "seed:bills": "ts-node src/scripts/seedBills.ts",
         "seed:bills:overwrite": "ts-node src/scripts/seedBills.ts --overwrite"
