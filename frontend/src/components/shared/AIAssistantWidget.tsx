@@ -64,21 +64,35 @@ export default function AIAssistantWidget() {
     return aiResponses[pathname] ?? aiResponses.default;
   };
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     if (!text.trim()) return;
     const userMsg: Message = { id: Date.now().toString(), from: "user", text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
-      const responses = getResponses();
-      const reply = responses[Math.floor(Math.random() * responses.length)];
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), from: "ai", text: reply },
-      ]);
-      setTyping(false);
-    }, 1200);
+
+    try{
+      const res = await fetch("http://localhost:8000/get-answer",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          que: text,
+        }),
+      });
+
+      if(res.ok){
+        const reply = await res.json();
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 1).toString(), from: "ai", text: reply.answer },
+        ]);
+      }
+    }catch{
+      console.error("could not send the message, please try again later");
+    }
+
+    setTyping(false);
   };
 
   const handleOpen = () => {
