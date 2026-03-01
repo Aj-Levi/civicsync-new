@@ -75,8 +75,8 @@ class Question(BaseModel):
     que: str
 
 @app.post("/get-answer")
-def get_answer(requestdata: Question):
-    response = Query_answer(requestdata.que)
+def get_answer(request_data: Question):
+    response = Query_answer(request_data.que)
     return response
 
 @app.post("/verify_complaint")
@@ -105,5 +105,6 @@ async def verify_complaint(
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 
