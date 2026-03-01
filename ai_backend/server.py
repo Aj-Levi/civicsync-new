@@ -1,6 +1,7 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File,UploadFile,Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from livekit import api
 import uvicorn
 import datetime
@@ -10,12 +11,15 @@ import os
 from dotenv import load_dotenv
 from typing import List
 from Similar_complaint import check_complaint
+from ChatBot import Query_answer
+from Ai_image_Validator import process_complaint
+import shutil
+import tempfile
 
 load_dotenv()
 
 app = FastAPI()
 
-# Allow React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,8 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-LIVEKIT_API_KEY = "devkey"
-LIVEKIT_API_SECRET = "12345678901234567890123456789012"
+LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY")
+LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 
 @app.get("/get-token")
 def get_token(identity: str = "browser-user", room: str = "test-room"):
@@ -67,5 +71,36 @@ def similar_complaint(request_data: ComplaintRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+class Question(BaseModel):
+    que: str
+
+@app.post("/get-answer")
+def get_answer(que: str):
+    response = Query_answer(que)
+    return response
+
+@app.post("/verify_complaint")
+async def verify_complaint(
+    complaint_text: str = Form(...),
+    image: UploadFile = File(...)
+):
+    _, ext = os.path.splitext(image.filename)
+    
+    if not ext:
+        ext = ".jpg"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+        shutil.copyfileobj(image.file, temp_file)
+        temp_path = temp_file.name
+        
+    try:
+        result = process_complaint(temp_path, complaint_text)
+        return JSONResponse(content=result)
+        
+    finally:
+        image.file.close() 
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
