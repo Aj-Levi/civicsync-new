@@ -27,7 +27,7 @@ export default function GuestAccessPage() {
         </div>
 
         <div className="space-y-3 mb-8">
-          <button
+          {/* <button
             onClick={() => navigate("/citizen/track")}
             className="w-full bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow"
           >
@@ -37,7 +37,7 @@ export default function GuestAccessPage() {
             <span className="font-semibold text-gray-800">
               {t("trackStatusGuest")}
             </span>
-          </button>
+          </button> */}
 
           <button
             onClick={() => navigate("/citizen/help")}
