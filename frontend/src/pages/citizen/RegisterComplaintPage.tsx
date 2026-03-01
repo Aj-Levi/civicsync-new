@@ -7,6 +7,9 @@ import {
   CheckCircle2,
   Loader2,
   ChevronDown,
+  User,
+  Users,
+  AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 import { useSessionStore } from "../../store/sessionStore";
@@ -178,6 +181,9 @@ export default function RegisterComplaintPage() {
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
 
   // Step 2 fields
+  const [complaintScope, setComplaintScope] = useState<
+    "personal" | "locality" | ""
+  >("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -196,6 +202,11 @@ export default function RegisterComplaintPage() {
   // Per-step validation touch state (show errors only after Next is clicked)
   const [touched2, setTouched2] = useState(false);
   const [touched3, setTouched3] = useState(false);
+
+  // Verification state
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [showAmbiguousPopup, setShowAmbiguousPopup] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useSessionStore();
@@ -224,9 +235,61 @@ export default function RegisterComplaintPage() {
     setPhotoName(file?.name ?? "");
   };
 
-  const goToStep2 = () => {
+  const goToStep2 = async () => {
     setTouched2(true);
-    if (step2Valid(category, description, photoFile)) setStep(3);
+    setVerifyError("");
+
+    if (complaintScope !== "" && step2Valid(category, description, photoFile)) {
+      setIsVerifying(true);
+
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(photoFile!);
+        reader.onloadend = async () => {
+          const base64Image = reader.result as string;
+
+          try {
+            const res = await fetch("http://localhost:8000/verify_complaint", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                complaint_text: description,
+                image: base64Image,
+              }),
+            });
+
+            if (!res.ok) throw new Error("Failed to verify complaint");
+
+            const data = await res.json();
+
+            if (data.status === "true complaint") {
+              setStep(3);
+            } else if (
+              data.status === "Ai_Generated" ||
+              data.status === "fake complaint"
+            ) {
+              setVerifyError(
+                `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`,
+              );
+            } else if (data.status === "unambiguous complaint") {
+              setShowAmbiguousPopup(true);
+            } else {
+              // Fallback for unexpected status
+              setStep(3);
+            }
+          } catch (err) {
+            console.error(err);
+            // If verification fails due to network error, let them proceed anyway to avoid blocking completely
+            setStep(3);
+          } finally {
+            setIsVerifying(false);
+          }
+        };
+      } catch (err) {
+        setIsVerifying(false);
+        setStep(3); // Fallback
+      }
+    }
   };
 
   const goBack = () => (step > 1 ? setStep((s) => s - 1) : navigate(-1));
@@ -234,11 +297,50 @@ export default function RegisterComplaintPage() {
   const handleSubmit = async () => {
     setTouched3(true);
     if (!step3Valid(streetAddress, state, district, pincode)) return;
-    if (!selectedDept) return;
+    if (!selectedDept || !complaintScope) return;
 
     setLoading(true);
     setSubmitError("");
+
     try {
+      if (complaintScope === "locality") {
+        // Fetch all district complaints to pass to similar-complaint check
+        try {
+          // Use the real API to get previous complaint descriptions for this district
+          const prevCompsRes = await api.getDistrictComplaints(district);
+          const prevComplaints = prevCompsRes.success
+            ? prevCompsRes.descriptions
+            : [];
+
+          const checkRes = await fetch(
+            "http://localhost:8000/similar-complaint",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prev_complaint: prevComplaints,
+                complaint: description,
+              }),
+            },
+          );
+
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (checkData.is_duplicate) {
+              setSubmitError(
+                `This complaint appears to be a duplicate: ${checkData.result}`,
+              );
+              setLoading(false);
+              return; // Halt submission
+            }
+          }
+        } catch (checkErr) {
+          console.error("Duplicate check failed, proceeding anyway", checkErr);
+          // If the AI duplicate check server is unreachable, we can choose to proceed or block.
+          // Proceeding for now.
+        }
+      }
+
       const res = await api.submitComplaint({
         departmentCode: selectedDept.code, // ← uses exact DB code (ELEC, WATER …)
         category,
@@ -374,6 +476,46 @@ export default function RegisterComplaintPage() {
               <span>{selectedDept.name}</span>
             </div>
 
+            {/* Scope selection — required */}
+            <h2 className="text-sm font-semibold text-gray-500 mb-2">
+              Is this a personal or locality issue?{" "}
+              <span className="text-red-400">*</span>
+            </h2>
+            <div className="flex gap-3 mb-1">
+              <button
+                onClick={() => setComplaintScope("personal")}
+                className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                  complaintScope === "personal"
+                    ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                <User size={20} className="mb-1.5" />
+                <span className="text-sm font-semibold">Personal</span>
+                <span className="text-[10px] text-center mt-0.5 opacity-70">
+                  Specific to me/my property
+                </span>
+              </button>
+              <button
+                onClick={() => setComplaintScope("locality")}
+                className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                  complaintScope === "locality"
+                    ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                <Users size={20} className="mb-1.5" />
+                <span className="text-sm font-semibold">Locality</span>
+                <span className="text-[10px] text-center mt-0.5 opacity-70">
+                  Affects the community
+                </span>
+              </button>
+            </div>
+            {touched2 && !complaintScope && (
+              <FieldError msg="Please select whether this is a personal or locality issue." />
+            )}
+            <div className="mb-4" />
+
             {/* Category — required */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               Issue Category <span className="text-red-400">*</span>
@@ -486,11 +628,25 @@ export default function RegisterComplaintPage() {
               ))}
             </div>
 
+            {verifyError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-red-600 text-sm mb-3">
+                <AlertTriangle size={16} className="inline mr-2 mb-0.5" />
+                {verifyError}
+              </div>
+            )}
+
             <button
               onClick={goToStep2}
-              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold btn-touch"
+              disabled={isVerifying}
+              className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold btn-touch disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {t("next")}
+              {isVerifying ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" /> Verifying…
+                </>
+              ) : (
+                t("next")
+              )}
             </button>
           </motion.div>
         )}
@@ -638,6 +794,11 @@ export default function RegisterComplaintPage() {
               {(
                 [
                   ["Department", `${selectedDept?.icon} ${selectedDept?.name}`],
+                  [
+                    "Scope",
+                    complaintScope.charAt(0).toUpperCase() +
+                      complaintScope.slice(1),
+                  ],
                   ["Category", category],
                   [
                     "Urgency",
@@ -680,6 +841,62 @@ export default function RegisterComplaintPage() {
               )}
             </button>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ambiguous Complaint Warning Popup */}
+      <AnimatePresence>
+        {showAmbiguousPopup && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              onClick={() => setShowAmbiguousPopup(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm z-50 bg-white rounded-2xl p-5 shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-3">
+                  <AlertTriangle size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">
+                  Ambiguous Complaint
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your complaint has been detected as ambiguous by the system.
+                  Do you still want to proceed with registering the complaint?
+                </p>
+                <div className="bg-red-50 text-red-700 text-xs p-3 rounded-xl border border-red-200 mb-5 text-left w-full">
+                  <strong>Warning:</strong> Appropriate action will be taken in
+                  case the complaint is found to be fake.
+                </div>
+
+                <div className="flex w-full gap-3">
+                  <button
+                    onClick={() => setShowAmbiguousPopup(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAmbiguousPopup(false);
+                      setStep(3);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-colors text-sm shadow-sm"
+                  >
+                    Proceed Anyway
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
