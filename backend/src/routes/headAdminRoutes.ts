@@ -4,6 +4,8 @@ import { roleGuard } from "../middleware/roleGuard";
 import {
   sendHeadAdminOTP,
   verifyHeadAdminOTP,
+  headAdminFirebaseLogin,
+  getHeadAdminMe,
   headAdminLogout,
   getHeadAdminMeta,
   createDepartmentAdmin,
@@ -16,9 +18,11 @@ const router = Router();
 
 router.post("/head-admin/send-otp", sendHeadAdminOTP);
 router.post("/head-admin/verify-otp", verifyHeadAdminOTP);
+router.post("/head-admin/firebase-login", headAdminFirebaseLogin);
 
-router.use(authGuard, roleGuard("head_admin"));
+router.use("/head-admin", authGuard, roleGuard("head_admin"));
 
+router.get("/head-admin/me", getHeadAdminMe);
 router.post("/head-admin/logout", headAdminLogout);
 router.get("/head-admin/meta", getHeadAdminMeta);
 router.get("/head-admin/department-admins", listDepartmentAdmins);

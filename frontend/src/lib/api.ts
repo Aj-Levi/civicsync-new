@@ -18,13 +18,24 @@ async function request<T = ApiResponse>(
   options: RequestInit = {},
 ): Promise<T> {
   const isFormData = options.body instanceof FormData;
+  const storedToken =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("authToken")
+      : null;
+
+  const baseHeaders = isFormData
+    ? { ...(options.headers ?? {}) }
+    : { "Content-Type": "application/json", ...(options.headers ?? {}) };
+
+  const headers = storedToken
+    ? { ...baseHeaders, Authorization: `Bearer ${storedToken}` }
+    : baseHeaders;
+
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     credentials: "include",
-    // Don't set Content-Type for FormData — fetch sets multipart boundary automatically
-    headers: isFormData
-      ? (options.headers ?? {})
-      : { "Content-Type": "application/json", ...(options.headers ?? {}) },
+    // Don't set Content-Type for FormData - fetch sets multipart boundary automatically
+    headers,
   });
 
   const data = (await res.json()) as T & { message?: string };
@@ -64,6 +75,23 @@ export const getMe = () => request("/auth/me");
 
 export const logout = () => request("/auth/logout", { method: "POST" });
 
+export const firebaseLogin = (firebaseToken: string) =>
+  request<{
+    success: boolean;
+    message: string;
+    token: string;
+    user: {
+      id: string;
+      name: string;
+      mobile: string;
+      district?: string;
+      preferredLanguage?: string;
+    };
+  }>("/auth/firebase-login", {
+    method: "POST",
+    body: JSON.stringify({ firebaseToken }),
+  });
+
 // ── Auth — Admin ───────────────────────────────────────────────────────────────
 
 export const adminLogin = (username: string, password: string) =>
@@ -86,7 +114,22 @@ export const adminLogin = (username: string, password: string) =>
 
 export const adminLogout = () => request("/admin/logout", { method: "POST" });
 
-export const adminGetMe = () => request("/admin/me");
+export const adminGetMe = () =>
+  request<{
+    success: boolean;
+    admin: {
+      _id?: string;
+      id?: string;
+      name: string;
+      username: string;
+      email: string;
+      role: "admin" | "superadmin";
+      district?: { _id?: string; id?: string; name?: string; state?: string } | string;
+      department?:
+        | { _id?: string; id?: string; name?: string; code?: string }
+        | string;
+    };
+  }>("/admin/me");
 
 // Head Admin
 export const sendHeadAdminOTP = (mobile: string) =>
@@ -110,8 +153,35 @@ export const verifyHeadAdminOTP = (mobile: string, otp: string) =>
     body: JSON.stringify({ mobile, otp }),
   });
 
+export const headAdminFirebaseLogin = (firebaseToken: string) =>
+  request<{
+    success: boolean;
+    message: string;
+    token: string;
+    admin: {
+      id: string;
+      name: string;
+      mobile: string;
+      role: "head_admin";
+    };
+  }>("/admin/head-admin/firebase-login", {
+    method: "POST",
+    body: JSON.stringify({ firebaseToken }),
+  });
+
 export const headAdminLogout = () =>
   request("/admin/head-admin/logout", { method: "POST" });
+
+export const headAdminGetMe = () =>
+  request<{
+    success: boolean;
+    admin: {
+      id: string;
+      name: string;
+      mobile: string;
+      role: "head_admin";
+    };
+  }>("/admin/head-admin/me");
 
 export interface HeadAdminDepartment {
   _id: string;
@@ -563,6 +633,48 @@ export const getMyPayments = () =>
 export const getPaymentById = (id: string) =>
   request<{ success: boolean; payment: CitizenPayment }>(`/payments/${id}`);
 
+export const downloadPaymentReceipt = async (paymentId: string): Promise<void> => {
+  const storedToken =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("authToken")
+      : null;
+
+  const headers: HeadersInit = storedToken
+    ? { Authorization: `Bearer ${storedToken}` }
+    : {};
+
+  const res = await fetch(`${BASE}/payments/${paymentId}/receipt`, {
+    method: "GET",
+    credentials: "include",
+    headers,
+  });
+
+  if (!res.ok) {
+    let message = `Failed to download receipt (${res.status})`;
+    try {
+      const data = (await res.json()) as { message?: string };
+      if (data?.message) message = data.message;
+    } catch {
+      // Keep fallback message
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const fileName = match?.[1] ?? `receipt-${paymentId}.pdf`;
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // Bills (Citizen)
 export type BillStatus = "pending" | "paid" | "overdue";
 
@@ -662,4 +774,5 @@ export const createAdminBill = (payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+
 

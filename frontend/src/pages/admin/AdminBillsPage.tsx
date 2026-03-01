@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Loader2, RefreshCw, Search } from "lucide-react";
 import * as api from "../../lib/api";
 import type { AdminBill, AdminBillDepartment, AdminBillUser } from "../../lib/api";
+import { useSessionStore } from "../../store/sessionStore";
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -11,6 +12,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function AdminBillsPage() {
+  const { role, user } = useSessionStore();
   const [users, setUsers] = useState<AdminBillUser[]>([]);
   const [departments, setDepartments] = useState<AdminBillDepartment[]>([]);
   const [bills, setBills] = useState<AdminBill[]>([]);
@@ -32,6 +34,22 @@ export default function AdminBillsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const currentAdminDepartmentId = useMemo(() => {
+    if (role !== "admin") return null;
+    const department = user?.department;
+    if (!department) return null;
+    if (typeof department === "string") return department;
+    if (
+      typeof department === "object" &&
+      department !== null &&
+      "_id" in department
+    ) {
+      const id = (department as { _id?: unknown })._id;
+      return typeof id === "string" ? id : null;
+    }
+    return null;
+  }, [role, user?.department]);
+  const isDepartmentLocked = role === "admin" && Boolean(currentAdminDepartmentId);
 
   const loadMeta = async () => {
     setLoadingMeta(true);
@@ -40,7 +58,14 @@ export default function AdminBillsPage() {
       setUsers(res.users);
       setDepartments(res.departments);
 
-      if (!selectedDepartment && res.departments.length === 1) {
+      if (isDepartmentLocked && currentAdminDepartmentId) {
+        const scopedDepartment = res.departments.find(
+          (d) => d._id === currentAdminDepartmentId,
+        );
+        const departmentId = scopedDepartment?._id ?? res.departments[0]?._id ?? "";
+        setSelectedDepartment(departmentId);
+        setFilterDepartment(departmentId || "all");
+      } else if (!selectedDepartment && res.departments.length === 1) {
         setSelectedDepartment(res.departments[0]._id);
       }
     } catch (err) {
@@ -84,7 +109,11 @@ export default function AdminBillsPage() {
     setMessage(null);
     setError(null);
 
-    if (!selectedUser || !selectedDepartment || !amount) {
+    const effectiveDepartmentId = isDepartmentLocked
+      ? currentAdminDepartmentId || selectedDepartment
+      : selectedDepartment;
+
+    if (!selectedUser || !effectiveDepartmentId || !amount) {
       setError("Please select user, department and amount.");
       return;
     }
@@ -99,7 +128,7 @@ export default function AdminBillsPage() {
     try {
       await api.createAdminBill({
         userId: selectedUser,
-        departmentId: selectedDepartment,
+        departmentId: effectiveDepartmentId,
         amount: numericAmount,
         dueDate: dueDate || undefined,
       });
@@ -161,13 +190,19 @@ export default function AdminBillsPage() {
                 <select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
+                  disabled={isDepartmentLocked}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
                 >
                   <option value="">Select department</option>
                   {departments.map((d) => (
-                    <option key={d._id} value={d._id}>{`${d.name} (${d.code})`}</option>
+                <option key={d._id} value={d._id}>{`${d.name} (${d.code})`}</option>
                   ))}
                 </select>
+                {isDepartmentLocked && (
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Department is locked to your admin assignment.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -245,6 +280,7 @@ export default function AdminBillsPage() {
             <select
               value={filterDepartment}
               onChange={(e) => setFilterDepartment(e.target.value)}
+              disabled={isDepartmentLocked}
               className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
             >
               <option value="all">All Departments</option>

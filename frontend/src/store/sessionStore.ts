@@ -23,6 +23,7 @@ interface SessionUser {
 
 interface SessionState {
   isAuthenticated: boolean;
+  sessionReady: boolean;
   role: UserRole;
   user: SessionUser | null;
   language: Language;
@@ -32,12 +33,14 @@ interface SessionState {
   setHeadAdminSession: (user: SessionUser) => void;
 
   loginGuest: () => void;
+  initializeSession: () => Promise<void>;
   logout: () => Promise<void>;
   setLanguage: (lang: Language) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   isAuthenticated: false,
+  sessionReady: false,
   role: "guest",
   user: null,
   language: "en",
@@ -59,7 +62,126 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   loginGuest: () => {
-    set({ isAuthenticated: true, role: "guest", user: null });
+    set({ isAuthenticated: true, sessionReady: true, role: "guest", user: null });
+  },
+
+  initializeSession: async () => {
+    if (get().sessionReady) return;
+
+    const tryAdmin = async (): Promise<boolean> => {
+      try {
+        const res = await api.adminGetMe();
+        const admin = res.admin;
+        set({
+          isAuthenticated: true,
+          sessionReady: true,
+          role: admin.role === "superadmin" ? "superadmin" : "admin",
+          user: {
+            id: admin.id ?? admin._id ?? "",
+            name: admin.name,
+            username: admin.username,
+            email: admin.email,
+            role: admin.role,
+            district:
+              typeof admin.district === "string"
+                ? admin.district
+                : admin.district?._id ?? admin.district?.id,
+            department: admin.department,
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const tryHeadAdmin = async (): Promise<boolean> => {
+      try {
+        const res = await api.headAdminGetMe();
+        set({
+          isAuthenticated: true,
+          sessionReady: true,
+          role: "head_admin",
+          user: {
+            id: res.admin.id,
+            name: res.admin.name,
+            mobile: res.admin.mobile,
+            role: "head_admin",
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const tryCitizen = async (): Promise<boolean> => {
+      try {
+        const res = await api.getMe();
+        const user = res.user as {
+          _id?: string;
+          id?: string;
+          name: string;
+          mobile: string;
+          preferredLanguage?: string;
+          district?: { _id?: string; id?: string } | string;
+        };
+        set({
+          isAuthenticated: true,
+          sessionReady: true,
+          role: "citizen",
+          user: {
+            id: user.id ?? user._id ?? "",
+            name: user.name,
+            mobile: user.mobile,
+            preferredLanguage: user.preferredLanguage,
+            district:
+              typeof user.district === "string"
+                ? user.district
+                : user.district?._id ?? user.district?.id,
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const storedToken =
+      typeof window !== "undefined" ? window.localStorage.getItem("authToken") : null;
+    let roleHint: UserRole | null = null;
+
+    if (storedToken) {
+      try {
+        const payloadPart = storedToken.split(".")[1];
+        if (payloadPart) {
+          const payloadJson = atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/"));
+          const payload = JSON.parse(payloadJson) as { role?: UserRole };
+          roleHint = payload.role ?? null;
+        }
+      } catch {
+        roleHint = null;
+      }
+    }
+
+    const order: Array<() => Promise<boolean>> =
+      roleHint === "head_admin"
+        ? [tryHeadAdmin, tryAdmin, tryCitizen]
+        : roleHint === "admin" || roleHint === "superadmin"
+          ? [tryAdmin, tryHeadAdmin, tryCitizen]
+          : roleHint === "citizen"
+            ? [tryCitizen, tryAdmin, tryHeadAdmin]
+            : [tryAdmin, tryHeadAdmin, tryCitizen];
+
+    for (const fn of order) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await fn()) return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("authToken");
+    }
+    set({ isAuthenticated: false, sessionReady: true, role: "guest", user: null });
   },
 
   logout: async () => {
@@ -75,7 +197,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch {
       // Always clear local state even if API call fails
     }
-    set({ isAuthenticated: false, role: "guest", user: null });
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("authToken");
+    }
+    set({ isAuthenticated: false, sessionReady: true, role: "guest", user: null });
   },
 
   setLanguage: (lang: Language) => set({ language: lang }),

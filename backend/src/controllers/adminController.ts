@@ -356,7 +356,7 @@ export const getAdminBillMeta = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { districtId } = getAdminScope(req);
+    const { districtId, departmentId } = getAdminScope(req);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userFilter: Record<string, any> = {};
@@ -367,18 +367,28 @@ export const getAdminBillMeta = async (
         { district: null },
       ];
     }
-
     const users = await User.find(userFilter)
       .select("name mobile district")
       .sort({ mobile: 1 })
       .lean();
 
-    const departments = await Department.find({ isActive: true })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const departmentFilter: Record<string, any> = { isActive: true };
+    if (departmentId) {
+      departmentFilter._id = departmentId;
+    }
+
+    const departments = await Department.find(departmentFilter)
       .select("name code")
       .sort({ name: 1 })
       .lean();
 
-    res.status(200).json({ success: true, users, departments });
+    res.status(200).json({
+      success: true,
+      users,
+      departments,
+      scope: { departmentId: departmentId ?? null },
+    });
   } catch (err) {
     next(err);
   }
@@ -390,22 +400,45 @@ export const createAdminBill = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { userId, departmentId, amount, dueDate } = req.body as {
+    const { userId, departmentId: requestedDepartmentId, amount, dueDate } = req.body as {
       userId?: string;
       departmentId?: string;
       amount?: number;
       dueDate?: string;
     };
 
-    if (!userId || !departmentId || amount == null) {
+    if (!userId || amount == null) {
       res.status(400).json({
         success: false,
-        message: "userId, departmentId and amount are required.",
+        message: "userId and amount are required.",
       });
       return;
     }
 
-    if (!isValidObjectId(userId) || !isValidObjectId(departmentId)) {
+    const { districtId, departmentId: scopedDepartmentId } = getAdminScope(req);
+
+    if (
+      requestedDepartmentId &&
+      scopedDepartmentId &&
+      requestedDepartmentId !== scopedDepartmentId
+    ) {
+      res.status(403).json({
+        success: false,
+        message: "You can only create bills for your assigned department.",
+      });
+      return;
+    }
+
+    const effectiveDepartmentId = scopedDepartmentId ?? requestedDepartmentId;
+    if (!effectiveDepartmentId) {
+      res.status(400).json({
+        success: false,
+        message: "departmentId is required.",
+      });
+      return;
+    }
+
+    if (!isValidObjectId(userId) || !isValidObjectId(effectiveDepartmentId)) {
       res.status(400).json({ success: false, message: "Invalid user/department id." });
       return;
     }
@@ -414,8 +447,6 @@ export const createAdminBill = async (
       res.status(400).json({ success: false, message: "Amount must be greater than 0." });
       return;
     }
-
-    const { districtId } = getAdminScope(req);
 
     const user = await User.findById(userId)
       .select("district utilityConnections")
@@ -433,7 +464,9 @@ export const createAdminBill = async (
       return;
     }
 
-    const dept = await Department.findById(departmentId).select("_id code name").lean();
+    const dept = await Department.findById(effectiveDepartmentId)
+      .select("_id code name")
+      .lean();
     if (!dept) {
       res.status(404).json({ success: false, message: "Department not found." });
       return;
@@ -515,13 +548,22 @@ export const getAdminBills = async (
     const { status = "pending", userId, departmentId, search } = req.query as Record<string, string>;
     const page = getPage(req);
 
-    const { districtId } = getAdminScope(req);
+    const { districtId, departmentId: scopedDepartmentId } = getAdminScope(req);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filter: Record<string, any> = {};
     if (districtId) filter.district = districtId;
 
-    if (departmentId && isValidObjectId(departmentId)) {
+    if (scopedDepartmentId) {
+      if (departmentId && departmentId !== scopedDepartmentId) {
+        res.status(403).json({
+          success: false,
+          message: "You can only view bills for your assigned department.",
+        });
+        return;
+      }
+      filter.department = scopedDepartmentId;
+    } else if (departmentId && isValidObjectId(departmentId)) {
       filter.department = departmentId;
     }
 

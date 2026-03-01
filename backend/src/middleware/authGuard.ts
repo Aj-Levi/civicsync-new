@@ -12,7 +12,13 @@ export const authGuard = (
   res: Response,
   next: NextFunction,
 ): void => {
-  const token = req.cookies?.civicsync_token as string | undefined;
+  const cookieToken = req.cookies?.civicsync_token as string | undefined;
+  const authHeader = req.headers.authorization;
+  const bearerToken =
+    authHeader && authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : undefined;
+  const token = cookieToken || bearerToken;
 
   if (!token) {
     res

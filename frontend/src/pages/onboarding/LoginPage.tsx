@@ -27,19 +27,7 @@ export default function LoginPage() {
       return;
     }
     setError("");
-    setLoading(true);
-    try {
-      await api.sendOTP(cleaned);
-      navigate("/otp", { state: { phone: cleaned } });
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to send OTP. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    navigate("/firebase-login", { state: { phone: cleaned } });
   };
 
   const handleAdminSubmit = async () => {
@@ -207,16 +195,36 @@ export default function LoginPage() {
                 t("sendOtp")
               )}
             </button>
-            {role === "citizen" && (
+            {role === "head_admin" && (
               <button
-                onClick={() => {
-                  loginGuest();
-                  navigate("/guest");
-                }}
-                className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-gray-700"
+                onClick={() =>
+                  navigate("/head-admin/firebase-login", {
+                    state: { phone: phone.replace(/\D/g, "") },
+                  })
+                }
+                className="w-full mt-3 py-2 text-sm text-blue-600 hover:text-blue-700"
               >
-                Continue as Guest
+                Login with Firebase OTP
               </button>
+            )}
+            {role === "citizen" && (
+              <>
+                <button
+                  onClick={() => navigate("/firebase-login")}
+                  className="w-full mt-3 py-2 text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Open Firebase OTP Screen
+                </button>
+                <button
+                  onClick={() => {
+                    loginGuest();
+                    navigate("/guest");
+                  }}
+                  className="w-full mt-1 py-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Continue as Guest
+                </button>
+              </>
             )}
           </>
         )}

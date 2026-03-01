@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { isValidObjectId } from "mongoose";
 import { Admin, Department, District, Feedback } from "../models";
 import { generateOTP, hashOTP, verifyOTP } from "../utils/generateOTP";
+import { getFirebaseAdminAuth } from "../config/firebaseAdmin";
 import {
   clearTokenCookie,
   setTokenCookie,
@@ -22,6 +23,7 @@ const MAX_OTP_ATTEMPTS = 5;
 const BLOCK_DURATION_MS = 15 * 60 * 1000;
 const OTP_STORE = new Map<string, HeadAdminOtpRecord>();
 const PAGE_SIZE = 20;
+const isDev = process.env.NODE_ENV !== "production";
 
 const normalizePhone = (value: string): string => value.replace(/\D/g, "");
 
@@ -93,13 +95,14 @@ export const sendHeadAdminOTP = async (
       attempts: 0,
     });
 
-    process.stdout.write(`\n[DEV OTP][HEAD_ADMIN] ${mobile} -> ${otp}\n`);
-    process.stderr.write(`\n[DEV OTP][HEAD_ADMIN] ${mobile} -> ${otp}\n`);
+    if (isDev) {
+      process.stdout.write(`\n[DEV OTP][HEAD_ADMIN] ${mobile} -> ${otp}\n`);
+    }
 
     res.status(200).json({
       success: true,
       message: "OTP generated. Check backend console.",
-      devOtp: otp,
+      ...(isDev ? { devOtp: otp } : {}),
     });
   } catch (err) {
     next(err);
@@ -205,9 +208,100 @@ export const verifyHeadAdminOTP = async (
   }
 };
 
+export const headAdminFirebaseLogin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const configured = getConfiguredHeadAdminPhone();
+    const { firebaseToken } = req.body as { firebaseToken?: string };
+
+    if (!configured) {
+      res.status(500).json({
+        success: false,
+        message: "HEAD_ADMIN_PHONE is not configured in backend .env.",
+      });
+      return;
+    }
+
+    if (!firebaseToken) {
+      res.status(400).json({
+        success: false,
+        message: "firebaseToken is required.",
+      });
+      return;
+    }
+
+    let decoded: { phone_number?: string };
+    try {
+      decoded = await getFirebaseAdminAuth().verifyIdToken(firebaseToken, true);
+    } catch {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired Firebase token.",
+      });
+      return;
+    }
+
+    const phoneFromToken = decoded.phone_number;
+    const mobile = normalizePhone(phoneFromToken ?? "");
+
+    if (!mobile || mobile !== configured) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized phone number for head admin login.",
+      });
+      return;
+    }
+
+    const token = signToken(
+      {
+        id: mobile,
+        role: "head_admin",
+        districtId: "",
+      },
+      HEAD_ADMIN_TTL,
+    );
+    setTokenCookie(res, token, HEAD_ADMIN_TTL);
+
+    res.status(200).json({
+      success: true,
+      message: "Head admin Firebase login successful.",
+      token,
+      admin: {
+        id: mobile,
+        name: "Head Admin",
+        mobile,
+        role: "head_admin",
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const headAdminLogout = (_req: Request, res: Response): void => {
   clearTokenCookie(res);
   res.status(200).json({ success: true, message: "Logged out successfully." });
+};
+
+export const getHeadAdminMe = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const configured = getConfiguredHeadAdminPhone();
+  const mobile = req.user?.id ?? configured;
+
+  res.status(200).json({
+    success: true,
+    admin: {
+      id: req.user?.id ?? mobile,
+      name: "Head Admin",
+      mobile,
+      role: "head_admin" as const,
+    },
+  });
 };
 
 export const getHeadAdminMeta = async (
