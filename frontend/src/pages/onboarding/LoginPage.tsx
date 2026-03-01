@@ -86,7 +86,7 @@ export default function LoginPage() {
         className="text-center"
       >
         <div className="w-20 h-20 rounded-full bg-white shadow-lg border-4 border-blue-100 flex items-center justify-center mx-auto mb-3">
-          <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+          {/* <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
             <circle cx="24" cy="24" r="18" stroke="#1E3A5F" strokeWidth="2.5" />
             <path
               d="M16 20c0-4.4 3.6-8 8-8s8 3.6 8 8"
@@ -101,7 +101,9 @@ export default function LoginPage() {
               strokeWidth="2.5"
               strokeLinecap="round"
             />
-          </svg>
+          </svg> */}
+
+          <img src="/apple-touch-icon.png" alt="logo" className="p-1 h-15 w-20 rounded-full" />
         </div>
         <h1 className="text-2xl font-black text-[#1E3A5F] font-display">
           CivicSync

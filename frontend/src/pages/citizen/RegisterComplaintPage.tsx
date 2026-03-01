@@ -212,6 +212,7 @@ export default function RegisterComplaintPage() {
   const { user } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
   // Derived location data
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
@@ -249,14 +250,17 @@ export default function RegisterComplaintPage() {
           const base64Image = reader.result as string;
 
           try {
-            const res = await fetch("http://localhost:8000/verify_complaint", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                complaint_text: description,
-                image: base64Image,
-              }),
-            });
+            const res = await fetch(
+              `${aiBaseUrl}/verify_complaint`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  complaint_text: description,
+                  image: base64Image,
+                }),
+              },
+            );
 
             if (!res.ok) throw new Error("Failed to verify complaint");
 
@@ -313,7 +317,7 @@ export default function RegisterComplaintPage() {
             : [];
 
           const checkRes = await fetch(
-            "http://localhost:8000/similar-complaint",
+            `${aiBaseUrl}/similar-complaint`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

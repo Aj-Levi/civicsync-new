@@ -137,6 +137,7 @@ export default function QuickQueryPopup({
   } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
   // focus input when opened
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function QuickQueryPopup({
     setAiResponse(null);
     setSelected(null);
     try {
-      const res = await fetch("http://localhost:8000/get-fix", {
+      const res = await fetch(`${aiBaseUrl}/get-fix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim() }),

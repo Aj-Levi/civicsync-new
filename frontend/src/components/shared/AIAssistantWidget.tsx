@@ -36,7 +36,7 @@ function VoiceUI() {
       <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
         Agent Status: <span className="text-[#1E3A5F]">{state}</span>
       </div>
-      
+
       <div className="h-24 w-full flex items-center justify-center">
         <BarVisualizer
           state={state}
@@ -55,6 +55,7 @@ export default function AIAssistantWidget() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const { pathname } = useLocation();
+  const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
   // Voice State
   const [voiceToken, setVoiceToken] = useState("");
@@ -71,9 +72,8 @@ export default function AIAssistantWidget() {
     setInput("");
     setTyping(true);
 
-    try{
-      const res = await fetch("http://localhost:8000/get-answer",
-      {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_AI_API_URL}/get-answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,14 +81,14 @@ export default function AIAssistantWidget() {
         }),
       });
 
-      if(res.ok){
+      if (res.ok) {
         const reply = await res.json();
         setMessages((prev) => [
           ...prev,
           { id: (Date.now() + 1).toString(), from: "ai", text: reply.answer },
         ]);
       }
-    }catch{
+    } catch {
       console.error("could not send the message, please try again later");
     }
 
@@ -106,12 +106,17 @@ export default function AIAssistantWidget() {
   // Start Voice Assistant
   const startVoiceConversation = async () => {
     try {
-      const response = await fetch("http://localhost:8000/get-token");
+      const response = await fetch(
+        `${aiBaseUrl}/get-token`,
+      );
       const data = await response.json();
       setVoiceToken(data.token);
       setVoiceConnected(true);
     } catch (error) {
-      console.error("Error fetching token. Make sure your FastAPI server is running!", error);
+      console.error(
+        "Error fetching token. Make sure your FastAPI server is running!",
+        error,
+      );
     }
   };
 
@@ -178,10 +183,8 @@ export default function AIAssistantWidget() {
                 {/* Voice Controls */}
                 <div className="p-4 bg-white border-t border-gray-100 flex flex-col items-center gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                   <VoiceAssistantControlBar controls={{ leave: false }} />
-                  
-                  <DisconnectButton 
-                    className="w-full py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
-                  >
+
+                  <DisconnectButton className="w-full py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors">
                     End Voice Session
                   </DisconnectButton>
                 </div>
@@ -247,7 +250,7 @@ export default function AIAssistantWidget() {
 
                 {/* Text Input */}
                 <div className="p-3 bg-white border-t border-gray-100 flex gap-2 items-center">
-                  <button 
+                  <button
                     onClick={startVoiceConversation}
                     className="p-1.5 text-gray-400 hover:text-[#1E3A5F] hover:bg-blue-50 rounded-full transition-colors"
                     title="Start Voice Assistant"
