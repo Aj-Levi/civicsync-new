@@ -1,14 +1,71 @@
-# Python environment and cache
-.venv/
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Secrets and environment variables
+# ===============================
+# 🔐 Environment & Secrets
+# ===============================
 .env
+.env.*
+*.env
 
-# Generated data / Vector databases
+# ===============================
+# 🐍 Python
+# ===============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# ===============================
+# 🧪 Virtual Environment
+# ===============================
+.venv/
+venv/
+env/
+ENV/
+
+# ===============================
+# 📦 Build / Distribution
+# ===============================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ===============================
+# 📊 FAISS Index / Vector Stores
+# ===============================
 faiss_index/
+*.index
+*.faiss
+vector_store/
+*.pkl
 
-# OS generated files (since you are on a Mac)
+# ===============================
+# 🧠 ML / Model Files
+# ===============================
+*.bin
+*.pt
+*.pth
+*.onnx
+
+# ===============================
+# 📝 Logs
+# ===============================
+*.log
+logs/
+
+# ===============================
+# 🖥️ OS Files
+# ===============================
 .DS_Store
+Thumbs.db
+
+# ===============================
+# 🧰 VS Code
+# ===============================
+.vscode/
+
+# ===============================
+# 📄 PDFs (optional - remove if needed)
+# ===============================
+Structure.pdf
