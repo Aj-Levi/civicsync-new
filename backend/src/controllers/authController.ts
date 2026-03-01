@@ -2,6 +2,7 @@
 import { Request, Response, NextFunction } from "express";
 import { User } from "../models";
 import { generateOTP, hashOTP, verifyOTP } from "../utils/generateOTP";
+import { getFirebaseAdminAuth } from "../config/firebaseAdmin";
 import {
   signToken,
   setTokenCookie,
@@ -9,8 +10,20 @@ import {
 } from "../utils/generateToken";
 
 const CITIZEN_TTL = process.env.JWT_CITIZEN_TTL ?? "24h";
+const FIREBASE_LOGIN_TTL = "7d";
 const MAX_OTP_ATTEMPTS = 5;
 const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const isDev = process.env.NODE_ENV !== "production";
+
+const normalizeIndianPhone = (input: string): string => {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("+")) return trimmed;
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return trimmed;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/send-otp
@@ -61,12 +74,16 @@ export const sendOTP = async (
 
     await user.save();
 
-    // ⚠️ DEV ONLY — log OTP to console instead of sending SMS
-    console.log(`\n🔐 [DEV] OTP for ${mobile} → ${plain}\n`);
+    // DEV: print OTP loudly in console and optionally return it in response.
+    if (isDev) {
+      process.stdout.write(`\n[DEV OTP][CITIZEN] ${mobile} -> ${plain}\n`);
+    }
 
-    res
-      .status(200)
-      .json({ success: true, message: "OTP generated. Check server console." });
+    res.status(200).json({
+      success: true,
+      message: "OTP generated. Check server console.",
+      ...(isDev ? { devOtp: plain } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -171,6 +188,82 @@ export const verifyOTPHandler = async (
     res.status(200).json({
       success: true,
       message: "Login successful.",
+      user: {
+        id: user.id,
+        name: user.name,
+        mobile: user.mobile,
+        district: user.district,
+        preferredLanguage: user.preferredLanguage,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/firebase-login
+export const firebaseLogin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { firebaseToken } = req.body as { firebaseToken?: string };
+
+    if (!firebaseToken) {
+      res.status(400).json({
+        success: false,
+        message: "firebaseToken is required.",
+      });
+      return;
+    }
+
+    let decoded: { phone_number?: string };
+    try {
+      decoded = await getFirebaseAdminAuth().verifyIdToken(firebaseToken, true);
+    } catch {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired Firebase token.",
+      });
+      return;
+    }
+    const phoneFromToken = decoded.phone_number;
+
+    if (!phoneFromToken) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid Firebase token. Phone number claim missing.",
+      });
+      return;
+    }
+
+    const mobile = normalizeIndianPhone(phoneFromToken);
+
+    let user = await User.findOne({ mobile });
+    if (!user) {
+      user = await User.create({
+        mobile,
+        name: "Citizen",
+        preferredLanguage: "en",
+      });
+    }
+
+    const token = signToken(
+      {
+        id: user.id as string,
+        role: "citizen",
+        districtId: user.district?.toString() ?? "",
+      },
+      FIREBASE_LOGIN_TTL,
+    );
+
+    setTokenCookie(res, token, FIREBASE_LOGIN_TTL);
+
+    res.status(200).json({
+      success: true,
+      message: "Firebase login successful.",
+      token,
       user: {
         id: user.id,
         name: user.name,

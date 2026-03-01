@@ -1,13 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useSessionStore } from "./store/sessionStore";
 
 import KioskLayout from "./layouts/KioskLayout";
 import AdminLayout from "./layouts/AdminLayout";
+import HeadAdminLayout from "./layouts/HeadAdminLayout";
 
 import SplashScreen from "./pages/onboarding/SplashScreen";
 import LanguageSelectionPage from "./pages/onboarding/LanguageSelectionPage";
 import LoginPage from "./pages/onboarding/LoginPage";
 import OTPPage from "./pages/onboarding/OTPPage";
+import HeadAdminOTPPage from "./pages/onboarding/HeadAdminOTPPage";
+import FirebaseLoginPage from "./pages/onboarding/FirebaseLoginPage";
+import HeadAdminFirebaseLoginPage from "./pages/onboarding/HeadAdminFirebaseLoginPage";
 import GuestAccessPage from "./pages/onboarding/GuestAccessPage";
 
 import CitizenDashboard from "./pages/citizen/CitizenDashboard";
@@ -30,30 +35,56 @@ import AdminServiceRequestsPage from "./pages/admin/AdminServiceRequestsPage";
 import AdminBillsPage from "./pages/admin/AdminBillsPage";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import AdminMapPage from "./pages/admin/AdminMapPage";
+import HeadAdminDashboardPage from "./pages/admin/HeadAdminDashboardPage";
+import HeadAdminFeedbackPage from "./pages/admin/HeadAdminFeedbackPage";
 
 import NotFoundPage from "./pages/NotFoundPage";
 
 function CitizenRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, role } = useSessionStore();
+  const { isAuthenticated, sessionReady, role } = useSessionStore();
+  if (!sessionReady) return <div className="min-h-screen bg-gray-100" />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (role === "admin") return <Navigate to="/admin" replace />;
+  if (role === "admin" || role === "superadmin") return <Navigate to="/admin" replace />;
+  if (role === "head_admin") return <Navigate to="/head-admin" replace />;
   return <>{children}</>;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, role } = useSessionStore();
-  if (!isAuthenticated || role !== "admin") return <Navigate to="/login" replace />;
+  const { isAuthenticated, sessionReady, role } = useSessionStore();
+  if (!sessionReady) return <div className="min-h-screen bg-gray-100" />;
+  if (!isAuthenticated || (role !== "admin" && role !== "superadmin")) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
+
+function HeadAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, sessionReady, role } = useSessionStore();
+  if (!sessionReady) return <div className="min-h-screen bg-gray-100" />;
+  if (!isAuthenticated || role !== "head_admin") return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 export default function App() {
+  const initializeSession = useSessionStore((s) => s.initializeSession);
+
+  useEffect(() => {
+    void initializeSession();
+  }, [initializeSession]);
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<SplashScreen />} />
         <Route path="/language" element={<LanguageSelectionPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/firebase-login" element={<FirebaseLoginPage />} />
+        <Route
+          path="/head-admin/firebase-login"
+          element={<HeadAdminFirebaseLoginPage />}
+        />
         <Route path="/otp" element={<OTPPage />} />
+        <Route path="/head-admin/otp" element={<HeadAdminOTPPage />} />
         <Route path="/guest" element={<GuestAccessPage />} />
 
         <Route
@@ -76,6 +107,17 @@ export default function App() {
           <Route path="/citizen/help" element={<HelpSupportPage />} />
           <Route path="/citizen/notifications" element={<NotificationsPage />} />
           <Route path="/citizen/profile" element={<ProfilePage />} />
+        </Route>
+
+        <Route
+          element={
+            <HeadAdminRoute>
+              <HeadAdminLayout />
+            </HeadAdminRoute>
+          }
+        >
+          <Route path="/head-admin" element={<HeadAdminDashboardPage />} />
+          <Route path="/head-admin/feedbacks" element={<HeadAdminFeedbackPage />} />
         </Route>
 
         <Route

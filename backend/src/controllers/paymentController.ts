@@ -2,6 +2,7 @@
 import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { isValidObjectId } from "mongoose";
+import PDFDocument from "pdfkit";
 import { Bill } from "../models/Bill";
 import { Payment } from "../models/Payment";
 import { ServiceRequest } from "../models/ServiceRequest";
@@ -30,6 +31,96 @@ const generateReceiptNumber = async (): Promise<string> => {
 
   throw new Error("Failed to generate a unique receipt number.");
 };
+
+const generateReceiptPdf = (input: {
+  receiptNumber: string;
+  paymentId: string;
+  paymentFor: string;
+  amount: number;
+  method?: string;
+  status: string;
+  paidAt?: Date;
+  referenceLabel: string;
+  referenceValue: string;
+  userId: string;
+}): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const chunks: Buffer[] = [];
+
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", (err) => reject(err));
+
+    doc.info.Title = `CivicSync Receipt ${input.receiptNumber}`;
+    doc.info.Author = "CivicSync";
+    doc.info.Subject = "Payment Receipt";
+
+    doc.fontSize(22).fillColor("#1E3A5F").text("CivicSync", { align: "left" });
+    doc
+      .fontSize(11)
+      .fillColor("#6B7280")
+      .text("Official Payment Receipt", { align: "left" });
+
+    doc.moveDown(1.2);
+    doc
+      .lineWidth(1)
+      .strokeColor("#E5E7EB")
+      .moveTo(50, doc.y)
+      .lineTo(545, doc.y)
+      .stroke();
+    doc.moveDown(1);
+
+    const addRow = (label: string, value: string) => {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(11)
+        .fillColor("#111827")
+        .text(label, 50, doc.y, { continued: true, width: 170 });
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor("#374151")
+        .text(value, { width: 350 });
+      doc.moveDown(0.35);
+    };
+
+    addRow("Receipt Number:", input.receiptNumber);
+    addRow("Payment ID:", input.paymentId);
+    addRow("Payment For:", input.paymentFor);
+    addRow("Amount:", `INR ${input.amount.toFixed(2)}`);
+    addRow("Method:", input.method ?? "N/A");
+    addRow("Status:", input.status.toUpperCase());
+    addRow(
+      "Paid At:",
+      input.paidAt
+        ? new Date(input.paidAt).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })
+        : "N/A",
+    );
+    addRow(input.referenceLabel, input.referenceValue);
+    addRow("User ID:", input.userId);
+
+    doc.moveDown(0.8);
+    doc
+      .lineWidth(1)
+      .strokeColor("#E5E7EB")
+      .moveTo(50, doc.y)
+      .lineTo(545, doc.y)
+      .stroke();
+    doc.moveDown(1);
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#6B7280")
+      .text(
+        "This is a system-generated receipt. For support, contact CivicSync Help Center.",
+      );
+
+    doc.end();
+  });
 
 export const getRazorpayKey = async (
   _req: Request,
@@ -490,6 +581,73 @@ export const getPaymentById = async (
     }
 
     res.status(200).json({ success: true, payment });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const downloadPaymentReceipt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      res.status(400).json({ success: false, message: "Invalid payment id." });
+      return;
+    }
+
+    const payment = await Payment.findOne({
+      _id: req.params.id,
+      userId: req.user!.id,
+    })
+      .populate("billId", "billNumber dueDate")
+      .populate("serviceRequestId", "referenceNumber serviceType")
+      .lean();
+
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Payment not found." });
+      return;
+    }
+
+    if (payment.status !== "success") {
+      res
+        .status(400)
+        .json({ success: false, message: "Receipt is available after successful payment only." });
+      return;
+    }
+
+    const referenceLabel =
+      payment.paymentFor === "bill" ? "Bill Number:" : "Service Request Ref:";
+    const referenceValue =
+      payment.paymentFor === "bill"
+        ? String(
+            (payment.billId as { billNumber?: string } | null)?.billNumber ??
+              "N/A",
+          )
+        : String(
+            (payment.serviceRequestId as { referenceNumber?: string } | null)
+              ?.referenceNumber ?? "N/A",
+          );
+
+    const pdfBuffer = await generateReceiptPdf({
+      receiptNumber: payment.receiptNumber,
+      paymentId: payment._id.toString(),
+      paymentFor: payment.paymentFor,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      paidAt: payment.paidAt,
+      referenceLabel,
+      referenceValue,
+      userId: req.user!.id,
+    });
+
+    const filename = `${payment.receiptNumber}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${filename}\"`);
+    res.setHeader("Content-Length", String(pdfBuffer.length));
+    res.status(200).send(pdfBuffer);
   } catch (err) {
     next(err);
   }
