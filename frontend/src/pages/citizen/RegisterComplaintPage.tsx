@@ -244,54 +244,42 @@ export default function RegisterComplaintPage() {
       setIsVerifying(true);
 
       try {
-        const reader = new FileReader();
-        reader.readAsDataURL(photoFile!);
-        reader.onloadend = async () => {
-          const base64Image = reader.result as string;
+        const formData = new FormData();
+        formData.append("complaint_text", description);
+        formData.append("image", photoFile!);
 
-          try {
-            const res = await fetch(
-              `${aiBaseUrl}/verify_complaint`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  complaint_text: description,
-                  image: base64Image,
-                }),
-              },
-            );
+        const res = await fetch(`${aiBaseUrl}/verify_complaint`, {
+          method: "POST",
+          body: formData,
+          // Do NOT set Content-Type header — browser sets it automatically
+          // with the correct multipart boundary when using FormData
+        });
 
-            if (!res.ok) throw new Error("Failed to verify complaint");
+        if (!res.ok) throw new Error("Failed to verify complaint");
 
-            const data = await res.json();
+        const data = await res.json();
 
-            if (data.status === "true complaint") {
-              setStep(3);
-            } else if (
-              data.status === "Ai_Generated" ||
-              data.status === "fake complaint"
-            ) {
-              setVerifyError(
-                `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`,
-              );
-            } else if (data.status === "unambiguous complaint") {
-              setShowAmbiguousPopup(true);
-            } else {
-              // Fallback for unexpected status
-              setStep(3);
-            }
-          } catch (err) {
-            console.error(err);
-            // If verification fails due to network error, let them proceed anyway to avoid blocking completely
-            setStep(3);
-          } finally {
-            setIsVerifying(false);
-          }
-        };
+        if (data.status === "true complaint") {
+          setStep(3);
+        } else if (
+          data.status === "Ai_Generated" ||
+          data.status === "fake complaint"
+        ) {
+          setVerifyError(
+            `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`,
+          );
+        } else if (data.status === "unambiguous complaint") {
+          setShowAmbiguousPopup(true);
+        } else {
+          // Fallback for unexpected status
+          setStep(3);
+        }
       } catch (err) {
+        console.error(err);
+        // If verification fails due to network error, let them proceed anyway
+        setStep(3);
+      } finally {
         setIsVerifying(false);
-        setStep(3); // Fallback
       }
     }
   };
@@ -316,17 +304,14 @@ export default function RegisterComplaintPage() {
             ? prevCompsRes.descriptions
             : [];
 
-          const checkRes = await fetch(
-            `${aiBaseUrl}/similar-complaint`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prev_complaint: prevComplaints,
-                complaint: description,
-              }),
-            },
-          );
+          const checkRes = await fetch(`${aiBaseUrl}/similar-complaint`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prev_complaint: prevComplaints,
+              complaint: description,
+            }),
+          });
 
           if (checkRes.ok) {
             const checkData = await checkRes.json();
