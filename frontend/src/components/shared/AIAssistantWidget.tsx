@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, X, Send, Bot } from "lucide-react";
+import { Mic, X, Send, Bot, Loader2 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { aiResponses } from "../../data/dummyData";
 import {
@@ -12,7 +12,8 @@ import {
   DisconnectButton,
 } from "@livekit/components-react";
 
-const SERVER_URL = "wss://jndcnjnfakjcnwaf-o9fdk5sf.livekit.cloud";
+// Keep the server URL stable outside the component to prevent re-renders
+const SERVER_URL = "wss://localhost:7880";
 
 interface Message {
   id: string;
@@ -27,7 +28,7 @@ const quickQuestions = [
   "Emergency contacts",
 ];
 
-// Custom component to handle Agent State & Visualization while in voice mode
+// Voice UI shown inside the LiveKitRoom context
 function VoiceUI() {
   const { state, audioTrack } = useVoiceAssistant();
 
@@ -36,7 +37,6 @@ function VoiceUI() {
       <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
         Agent Status: <span className="text-[#1E3A5F]">{state}</span>
       </div>
-
       <div className="h-24 w-full flex items-center justify-center">
         <BarVisualizer
           state={state}
@@ -49,6 +49,8 @@ function VoiceUI() {
   );
 }
 
+type VoiceState = "idle" | "loading" | "connected";
+
 export default function AIAssistantWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -57,13 +59,14 @@ export default function AIAssistantWidget() {
   const { pathname } = useLocation();
   const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
-  // Voice State
-  const [voiceToken, setVoiceToken] = useState("");
-  const [voiceConnected, setVoiceConnected] = useState(false);
+  // Use a single state object for voice to avoid split-state race conditions
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceToken, setVoiceToken] = useState<string | null>(null);
 
-  const getResponses = () => {
-    return aiResponses[pathname] ?? aiResponses.default;
-  };
+  // Guard against duplicate token requests
+  const fetchingToken = useRef(false);
+
+  const getResponses = () => aiResponses[pathname] ?? aiResponses.default;
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -73,12 +76,10 @@ export default function AIAssistantWidget() {
     setTyping(true);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_AI_API_URL}/get-answer`, {
+      const res = await fetch(`${aiBaseUrl}/get-answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          que: text,
-        }),
+        body: JSON.stringify({ que: text }),
       });
 
       if (res.ok) {
@@ -88,11 +89,11 @@ export default function AIAssistantWidget() {
           { id: (Date.now() + 1).toString(), from: "ai", text: reply.answer },
         ]);
       }
-    } catch {
-      console.error("could not send the message, please try again later");
+    } catch (err) {
+      console.error("Could not send the message, please try again later", err);
+    } finally {
+      setTyping(false);
     }
-
-    setTyping(false);
   };
 
   const handleOpen = () => {
@@ -103,27 +104,33 @@ export default function AIAssistantWidget() {
     }
   };
 
-  // Start Voice Assistant
+  // Fetch a LiveKit token and transition to connected state atomically
   const startVoiceConversation = async () => {
+    if (fetchingToken.current || voiceState !== "idle") return;
+    fetchingToken.current = true;
+    setVoiceState("loading");
+
     try {
-      const response = await fetch(
-        `${aiBaseUrl}/get-token`,
-      );
+      const response = await fetch(`${aiBaseUrl}/get-token`);
+      if (!response.ok)
+        throw new Error(`Token request failed: ${response.status}`);
       const data = await response.json();
+
+      // Set token first, then flip to connected — both committed in the same flush
       setVoiceToken(data.token);
-      setVoiceConnected(true);
+      setVoiceState("connected");
     } catch (error) {
-      console.error(
-        "Error fetching token. Make sure your FastAPI server is running!",
-        error,
-      );
+      console.error("Error fetching LiveKit token:", error);
+      setVoiceState("idle");
+    } finally {
+      fetchingToken.current = false;
     }
   };
 
-  // Disconnect Voice Assistant
+  // Called when the LiveKit room disconnects (user ended session, network error, etc.)
   const onVoiceDisconnected = useCallback(() => {
-    setVoiceConnected(false);
-    setVoiceToken("");
+    setVoiceState("idle");
+    setVoiceToken(null);
   }, []);
 
   return (
@@ -166,8 +173,8 @@ export default function AIAssistantWidget() {
               </button>
             </div>
 
-            {/* Conditional Rendering: Voice UI vs Text UI */}
-            {voiceConnected ? (
+            {/* Voice mode — only render LiveKitRoom when token is ready */}
+            {voiceState === "connected" && voiceToken ? (
               <LiveKitRoom
                 serverUrl={SERVER_URL}
                 token={voiceToken}
@@ -177,13 +184,10 @@ export default function AIAssistantWidget() {
                 onDisconnected={onVoiceDisconnected}
                 className="flex-1 flex flex-col bg-gray-50"
               >
-                {/* Voice Visualizer */}
                 <VoiceUI />
 
-                {/* Voice Controls */}
                 <div className="p-4 bg-white border-t border-gray-100 flex flex-col items-center gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                   <VoiceAssistantControlBar controls={{ leave: false }} />
-
                   <DisconnectButton className="w-full py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors">
                     End Voice Session
                   </DisconnectButton>
@@ -252,10 +256,19 @@ export default function AIAssistantWidget() {
                 <div className="p-3 bg-white border-t border-gray-100 flex gap-2 items-center">
                   <button
                     onClick={startVoiceConversation}
-                    className="p-1.5 text-gray-400 hover:text-[#1E3A5F] hover:bg-blue-50 rounded-full transition-colors"
-                    title="Start Voice Assistant"
+                    disabled={voiceState === "loading"}
+                    className="p-1.5 text-gray-400 hover:text-[#1E3A5F] hover:bg-blue-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      voiceState === "loading"
+                        ? "Connecting…"
+                        : "Start Voice Assistant"
+                    }
                   >
-                    <Mic size={18} />
+                    {voiceState === "loading" ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Mic size={18} />
+                    )}
                   </button>
                   <input
                     value={input}
