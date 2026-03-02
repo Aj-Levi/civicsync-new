@@ -89,6 +89,8 @@ If the user asks something unrelated, respond:
 
 async def entrypoint(ctx: JobContext):
     print(f"User connected to room: {ctx.room.name}")
+    
+    await ctx.connect() 
 
     session = AgentSession()
 
@@ -99,4 +101,5 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
+
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

@@ -22,7 +22,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://civicsync-new.vercel.app", 
+        "http://localhost:5173" # Good to keep for local testing!
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,8 +78,8 @@ class Question(BaseModel):
     que: str
 
 @app.post("/get-answer")
-def get_answer(que: str):
-    response = Query_answer(que)
+def get_answer(request_data: Question):
+    response = Query_answer(request_data.que)
     return response
 
 @app.post("/verify_complaint")
@@ -105,4 +108,7 @@ async def verify_complaint(
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+
 
