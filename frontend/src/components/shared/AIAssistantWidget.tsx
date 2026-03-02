@@ -12,7 +12,7 @@ import {
   DisconnectButton,
 } from "@livekit/components-react";
 
-const SERVER_URL = "ws://localhost:7880";
+const SERVER_URL = "wss://jndcnjnfakjcnwaf-o9fdk5sf.livekit.cloud";
 
 interface Message {
   id: string;
