@@ -6,7 +6,7 @@ import { useTranslation } from "../../lib/i18n";
 const languages: { code: Language; name: string; sub: string }[] = [
   { code: "en", name: "English", sub: "WELCOME" },
   { code: "hi", name: "हिंदी", sub: "स्वागत है" },
-  { code: "pa", name: "ਪੰਜਾਬੀ", sub: "ਜੀ ਆਇਆਂ ਨੂੰ" },
+  { code: "as", name: "অসমীয়া", sub: "স্বাগতম" },
 ];
 
 export default function LanguageSelectionPage() {
@@ -158,7 +158,7 @@ export default function LanguageSelectionPage() {
           transition={{ delay: 0.8 }}
           className="text-white text-xs tracking-widest uppercase"
         >
-          {t("selectLanguage")} • ਭਾਸ਼ਾ ਚੁਣੋ • भाषा चुनें
+          {t("selectLanguage")} • ভাষা বাছনি কৰক • भाषा चुनें
         </motion.p>
       </motion.div>
     </div>

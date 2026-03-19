@@ -26,7 +26,7 @@ import type { DistrictOption, UserAddress } from "../../lib/api";
 const LANG_OPTIONS = [
   { value: "en", label: "English" },
   { value: "hi", label: "हिंदी" },
-  { value: "pa", label: "ਪੰਜਾਬੀ" },
+  { value: "as", label: "অসমীয়া" },
 ] as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

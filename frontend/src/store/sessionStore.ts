@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import * as api from "../lib/api";
 
-export type Language = "en" | "hi" | "pa";
+export type Language = "en" | "hi" | "as";
 export type UserRole =
   | "citizen"
   | "admin"

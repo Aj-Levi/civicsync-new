@@ -28,7 +28,7 @@ export interface IUser extends Document {
   /** Existing utility service connections for this citizen */
   utilityConnections: IUtilityConnection[];
 
-  preferredLanguage: "en" | "hi" | "pa";
+  preferredLanguage: "en" | "hi" | "as";
 
   // OTP fields (hashed before storage)
   otp?: string;
@@ -90,7 +90,7 @@ const userSchema = new Schema<IUser>(
 
     preferredLanguage: {
       type: String,
-      enum: ["en", "hi", "pa"],
+      enum: ["en", "hi", "as"],
       default: "en",
     },
 

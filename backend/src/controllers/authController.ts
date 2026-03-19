@@ -360,11 +360,11 @@ export const updateProfile = async (
     }
 
     if (preferredLanguage !== undefined) {
-      if (!["en", "hi", "pa"].includes(preferredLanguage)) {
+      if (!["en", "hi", "as"].includes(preferredLanguage)) {
         res.status(400).json({ success: false, message: "Invalid language." });
         return;
       }
-      user.preferredLanguage = preferredLanguage as "en" | "hi" | "pa";
+      user.preferredLanguage = preferredLanguage as "en" | "hi" | "as";
     }
 
     if (districtId !== undefined) {

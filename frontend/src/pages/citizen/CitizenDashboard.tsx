@@ -281,7 +281,7 @@ export default function CitizenDashboard() {
 
   return (
     <div className="pb-4">
-      <div className="bg-[#1E3A5F] px-4 pb-5 pt-2">
+      {visibleBills.length > 0 && <div className="bg-[#1E3A5F] px-4 pb-5 pt-2">
         <div className="grid grid-cols-4 gap-2 mt-1">
           {visibleBills.map((bill) => {
             const { icon: Icon, color } = billConfig[bill.category];
@@ -303,7 +303,7 @@ export default function CitizenDashboard() {
             );
           })}
         </div>
-      </div>
+      </div> }
 
       <div className="px-4 pt-4 space-y-5">
         <section>

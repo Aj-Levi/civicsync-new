@@ -15,10 +15,10 @@ export default function CitizenNavBar() {
 
   return (
     <>
-      <header className="bg-[#1E3A5F] text-white px-4 pt-5 pb-4 shadow-md">
+      <header className="bg-[#1E3A5F] text-white px-4 pt-5 pb-6 mb-1 shadow-md">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-blue-200 font-medium">{t("welcome")}</p>
+            <p className="text-lg text-blue-200 font-medium">{t("welcome")}</p>
             <h1 className="text-xl font-bold font-display leading-tight">
               {user?.name ?? "Citizen"}
             </h1>
