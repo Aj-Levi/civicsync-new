@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSessionStore } from "../store/sessionStore";
 import IdleOverlay from "../components/shared/IdleOverlay";
 import AIAssistantWidget from "../components/shared/AIAssistantWidget";
+import VoiceNavOverlay from "../components/shared/VoiceNavOverlay";
 import OfflineBanner from "../components/shared/OfflineBanner";
 import CitizenNavBar from "../components/citizen/CitizenNavBar";
 import CitizenBottomNav from "../components/citizen/CitizenBottomNav";
@@ -76,7 +77,9 @@ export default function KioskLayout() {
       </main>
       <CitizenBottomNav />
       <AIAssistantWidget />
+      <VoiceNavOverlay />
       {showIdle && <IdleOverlay countdown={countdown} onDismiss={resetTimer} />}
     </div>
   );
 }
+
