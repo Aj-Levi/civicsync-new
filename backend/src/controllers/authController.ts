@@ -1,6 +1,6 @@
 /// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
-import { User } from "../models";
+import { User, District } from "../models";
 import { generateOTP, hashOTP, verifyOTP } from "../utils/generateOTP";
 import { getFirebaseAdminAuth } from "../config/firebaseAdmin";
 import {
@@ -185,6 +185,8 @@ export const verifyOTPHandler = async (
 
     setTokenCookie(res, token, CITIZEN_TTL);
 
+    await user.populate("district", "name state");
+
     res.status(200).json({
       success: true,
       message: "Login successful.",
@@ -194,6 +196,8 @@ export const verifyOTPHandler = async (
         mobile: user.mobile,
         district: user.district,
         preferredLanguage: user.preferredLanguage,
+        address: user.address,
+        createdAt: user.createdAt,
       },
     });
   } catch (err) {
@@ -260,6 +264,8 @@ export const firebaseLogin = async (
 
     setTokenCookie(res, token, FIREBASE_LOGIN_TTL);
 
+    await user.populate("district", "name state");
+
     res.status(200).json({
       success: true,
       message: "Firebase login successful.",
@@ -270,6 +276,8 @@ export const firebaseLogin = async (
         mobile: user.mobile,
         district: user.district,
         preferredLanguage: user.preferredLanguage,
+        address: user.address,
+        createdAt: user.createdAt,
       },
     });
   } catch (err) {
@@ -308,4 +316,121 @@ export const getMe = async (
 export const logout = (_req: Request, res: Response): void => {
   clearTokenCookie(res);
   res.status(200).json({ success: true, message: "Logged out successfully." });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/auth/profile  [authGuard]
+// Editable: name, preferredLanguage, address, districtId
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { name, preferredLanguage, districtId, address } = req.body as {
+      name?: string;
+      preferredLanguage?: string;
+      districtId?: string;
+      address?: {
+        houseNo?: string;
+        street?: string;
+        landmark?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+      };
+    };
+
+    const user = await User.findById(req.user!.id);
+    if (!user) {
+      res.status(404).json({ success: false, message: "User not found." });
+      return;
+    }
+
+    if (name !== undefined) {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        res
+          .status(400)
+          .json({ success: false, message: "Name cannot be empty." });
+        return;
+      }
+      user.name = trimmed;
+    }
+
+    if (preferredLanguage !== undefined) {
+      if (!["en", "hi", "pa"].includes(preferredLanguage)) {
+        res.status(400).json({ success: false, message: "Invalid language." });
+        return;
+      }
+      user.preferredLanguage = preferredLanguage as "en" | "hi" | "pa";
+    }
+
+    if (districtId !== undefined) {
+      const district = await District.findById(districtId).lean();
+      if (!district) {
+        res.status(400).json({ success: false, message: "Invalid district." });
+        return;
+      }
+      user.district = district._id as typeof user.district;
+    }
+
+    if (address !== undefined) {
+      user.address = {
+        houseNo: address.houseNo?.trim() ?? user.address?.houseNo,
+        street: address.street?.trim() ?? user.address?.street,
+        landmark: address.landmark?.trim() ?? user.address?.landmark,
+        city: address.city?.trim() ?? user.address?.city,
+        state: address.state?.trim() ?? user.address?.state,
+        pincode: address.pincode?.trim() ?? user.address?.pincode,
+      };
+    }
+
+    await user.save();
+    await user.populate("district", "name state");
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully.",
+      user: {
+        id: user.id,
+        name: user.name,
+        mobile: user.mobile,
+        preferredLanguage: user.preferredLanguage,
+        district: user.district,
+        address: user.address,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/districts  [public]
+// ─────────────────────────────────────────────────────────────────────────────
+export const getDistricts = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const districts = await District.find({ isActive: true })
+      .select("name state")
+      .sort({ state: 1, name: 1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      districts: districts.map((d) => ({
+        id: d._id,
+        name: d.name,
+        state: d.state,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
 };

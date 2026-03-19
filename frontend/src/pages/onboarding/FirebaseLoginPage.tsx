@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-} from "firebase/auth";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import type { ConfirmationResult } from "firebase/auth";
 import { auth } from "../../firebase";
 import * as api from "../../lib/api";
@@ -130,12 +127,25 @@ export default function FirebaseLoginPage() {
       const result = await api.firebaseLogin(firebaseToken);
 
       localStorage.setItem("authToken", result.token);
+
+      const user = result.user;
+      const districtObj =
+        typeof user.district === "object" && user.district !== null
+          ? user.district
+          : null;
+
       setCitizenSession({
-        id: result.user.id,
-        name: result.user.name,
-        mobile: result.user.mobile,
-        district: result.user.district,
-        preferredLanguage: result.user.preferredLanguage,
+        id: user.id || (user as any)._id || "",
+        name: user.name,
+        mobile: user.mobile,
+        preferredLanguage: user.preferredLanguage,
+        district:
+          typeof user.district === "string"
+            ? user.district
+            : (districtObj?._id ?? (districtObj as any)?.id),
+        districtName: districtObj?.name,
+        address: user.address,
+        createdAt: user.createdAt,
       });
       navigate("/citizen", { replace: true });
     } catch (err) {
@@ -189,7 +199,9 @@ export default function FirebaseLoginPage() {
             <input
               type="text"
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(e) =>
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
               placeholder="6-digit OTP"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 mb-4"
               disabled={verifyingOtp}

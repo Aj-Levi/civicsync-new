@@ -59,13 +59,7 @@ export const verifyOTP = (mobile: string, otp: string) =>
   request<{
     success: boolean;
     message: string;
-    user: {
-      id: string;
-      name: string;
-      mobile: string;
-      district: string;
-      preferredLanguage: string;
-    };
+    user: FullCitizenUser;
   }>("/auth/verify-otp", {
     method: "POST",
     body: JSON.stringify({ mobile, otp }),
@@ -80,13 +74,7 @@ export const firebaseLogin = (firebaseToken: string) =>
     success: boolean;
     message: string;
     token: string;
-    user: {
-      id: string;
-      name: string;
-      mobile: string;
-      district?: string;
-      preferredLanguage?: string;
-    };
+    user: FullCitizenUser;
   }>("/auth/firebase-login", {
     method: "POST",
     body: JSON.stringify({ firebaseToken }),
@@ -124,7 +112,9 @@ export const adminGetMe = () =>
       username: string;
       email: string;
       role: "admin" | "superadmin";
-      district?: { _id?: string; id?: string; name?: string; state?: string } | string;
+      district?:
+        | { _id?: string; id?: string; name?: string; state?: string }
+        | string;
       department?:
         | { _id?: string; id?: string; name?: string; code?: string }
         | string;
@@ -638,7 +628,9 @@ export const getMyPayments = () =>
 export const getPaymentById = (id: string) =>
   request<{ success: boolean; payment: CitizenPayment }>(`/payments/${id}`);
 
-export const downloadPaymentReceipt = async (paymentId: string): Promise<void> => {
+export const downloadPaymentReceipt = async (
+  paymentId: string,
+): Promise<void> => {
   const storedToken =
     typeof window !== "undefined"
       ? window.localStorage.getItem("authToken")
@@ -775,9 +767,59 @@ export const createAdminBill = (payload: {
   amount: number;
   dueDate?: string;
 }) =>
-  request<{ success: boolean; message: string; bill: AdminBill }>("/admin/bills", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  request<{ success: boolean; message: string; bill: AdminBill }>(
+    "/admin/bills",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 
+// ── Profile (Citizen) ─────────────────────────────────────────────────────────────────
 
+export interface DistrictOption {
+  id: string;
+  name: string;
+  state: string;
+}
+
+export interface UserAddress {
+  houseNo?: string;
+  street?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
+export interface UpdateProfilePayload {
+  name?: string;
+  preferredLanguage?: string;
+  districtId?: string;
+  address?: UserAddress;
+}
+
+export interface FullCitizenUser {
+  id: string;
+  name: string;
+  mobile: string;
+  preferredLanguage: string;
+  district?: { _id: string; name: string; state: string } | string;
+  address?: UserAddress;
+  createdAt?: string;
+}
+
+export const getDistricts = () =>
+  request<{ success: boolean; districts: DistrictOption[] }>("/auth/districts");
+
+export const updateProfile = (payload: UpdateProfilePayload) =>
+  request<{ success: boolean; message: string; user: FullCitizenUser }>(
+    "/auth/profile",
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+
+export const getFullProfile = () =>
+  request<{ success: boolean; user: FullCitizenUser }>("/auth/me");

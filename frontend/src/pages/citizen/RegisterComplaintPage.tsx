@@ -177,6 +177,7 @@ const step3Valid = (
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function RegisterComplaintPage() {
+  const { user } = useSessionStore();
   const [step, setStep] = useState(1);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
 
@@ -190,11 +191,21 @@ export default function RegisterComplaintPage() {
   const [photoName, setPhotoName] = useState("");
   const [urgency, setUrgency] = useState<Urgency>("medium");
 
-  // Step 3 location fields
-  const [streetAddress, setStreetAddress] = useState("");
-  const [state, setState_] = useState("");
-  const [district, setDistrict] = useState("");
-  const [pincode, setPincode] = useState("");
+  // Step 3 location fields — pre-filled from user profile where available
+  const [streetAddress, setStreetAddress] = useState(
+    () => user?.address?.street ?? "",
+  );
+  const [state, setState_] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
+  });
+  const [district, setDistrict] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    const d = (user?.districtName ?? "").trim();
+    if (!s || !d || !LOCATION_DATA[s]) return "";
+    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
+  });
+  const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
 
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -209,7 +220,6 @@ export default function RegisterComplaintPage() {
   const [showAmbiguousPopup, setShowAmbiguousPopup] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -217,13 +227,17 @@ export default function RegisterComplaintPage() {
 
   // ── Voice Auto-Fill: read form data from route state ─────────────────────
   useEffect(() => {
-    const voiceData = (location.state as { voiceFormData?: Record<string, string> })?.voiceFormData;
+    const voiceData = (
+      location.state as { voiceFormData?: Record<string, string> }
+    )?.voiceFormData;
     if (!voiceData) return;
 
     // Auto-select department
     if (voiceData.department) {
       const dept = DEPARTMENTS.find(
-        (d) => d.key === voiceData.department || d.code.toLowerCase() === voiceData.department?.toLowerCase(),
+        (d) =>
+          d.key === voiceData.department ||
+          d.code.toLowerCase() === voiceData.department?.toLowerCase(),
       );
       if (dept) {
         setSelectedDept(dept);
@@ -240,18 +254,25 @@ export default function RegisterComplaintPage() {
     }
 
     if (voiceData.description) setDescription(voiceData.description);
-    if (voiceData.urgency && ["low", "medium", "high"].includes(voiceData.urgency)) {
+    if (
+      voiceData.urgency &&
+      ["low", "medium", "high"].includes(voiceData.urgency)
+    ) {
       setUrgency(voiceData.urgency as Urgency);
     }
     if (voiceData.scope && ["personal", "locality"].includes(voiceData.scope)) {
       setComplaintScope(voiceData.scope as "personal" | "locality");
     }
     if (voiceData.state) {
-      const matchedState = STATES.find((s) => s.toLowerCase() === voiceData.state?.toLowerCase());
+      const matchedState = STATES.find(
+        (s) => s.toLowerCase() === voiceData.state?.toLowerCase(),
+      );
       if (matchedState) {
         setState_(matchedState);
         if (voiceData.district) {
-          const districtsForState = Object.keys(LOCATION_DATA[matchedState] ?? {});
+          const districtsForState = Object.keys(
+            LOCATION_DATA[matchedState] ?? {},
+          );
           const matchedDistrict = districtsForState.find(
             (d) => d.toLowerCase() === voiceData.district?.toLowerCase(),
           );
@@ -272,18 +293,14 @@ export default function RegisterComplaintPage() {
 
   // Derived location data
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
-  const pincodes =
-    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
 
   const handleStateChange = (s: string) => {
     setState_(s);
     setDistrict("");
-    setPincode("");
   };
 
   const handleDistrictChange = (d: string) => {
     setDistrict(d);
-    setPincode("");
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -775,38 +792,30 @@ export default function RegisterComplaintPage() {
                 )}
               </div>
 
-              {/* Pincode dropdown — enabled only after district is selected */}
+              {/* Pincode input */}
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   Pincode <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <select
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
                     value={pincode}
-                    onChange={(e) => setPincode(e.target.value)}
-                    disabled={!district}
-                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 pr-8 disabled:opacity-50 ${
-                      touched3 && !pincode
+                    onChange={(e) =>
+                      setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    placeholder="e.g. 110001"
+                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      touched3 && pincode.trim().length !== 6
                         ? "border-red-300"
                         : "border-gray-200"
                     }`}
-                  >
-                    <option value="">
-                      {district ? "Select pincode…" : "Select district first"}
-                    </option>
-                    {pincodes.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                   />
                 </div>
-                {touched3 && !pincode && (
-                  <FieldError msg="Please select a pincode." />
+                {touched3 && pincode.trim().length !== 6 && (
+                  <FieldError msg="Please enter a valid 6-digit pincode." />
                 )}
               </div>
 

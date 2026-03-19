@@ -17,8 +17,18 @@ interface SessionUser {
   username?: string;
   role?: UserRole;
   district?: string;
+  districtName?: string;
   department?: unknown;
   preferredLanguage?: string;
+  address?: {
+    houseNo?: string;
+    street?: string;
+    landmark?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  createdAt?: string;
 }
 
 interface SessionState {
@@ -36,6 +46,7 @@ interface SessionState {
   initializeSession: () => Promise<void>;
   logout: () => Promise<void>;
   setLanguage: (lang: Language) => void;
+  updateUser: (patch: Partial<SessionUser>) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -62,7 +73,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   loginGuest: () => {
-    set({ isAuthenticated: true, sessionReady: true, role: "guest", user: null });
+    set({
+      isAuthenticated: true,
+      sessionReady: true,
+      role: "guest",
+      user: null,
+    });
   },
 
   initializeSession: async () => {
@@ -85,7 +101,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             district:
               typeof admin.district === "string"
                 ? admin.district
-                : admin.district?._id ?? admin.district?.id,
+                : (admin.district?._id ?? admin.district?.id),
             department: admin.department,
           },
         });
@@ -124,8 +140,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           name: string;
           mobile: string;
           preferredLanguage?: string;
-          district?: { _id?: string; id?: string } | string;
+          district?:
+            | { _id?: string; id?: string; name?: string; state?: string }
+            | string;
+          address?: {
+            houseNo?: string;
+            street?: string;
+            landmark?: string;
+            city?: string;
+            state?: string;
+            pincode?: string;
+          };
+          createdAt?: string;
         };
+        const districtObj =
+          typeof user.district === "object" && user.district !== null
+            ? user.district
+            : null;
         set({
           isAuthenticated: true,
           sessionReady: true,
@@ -138,7 +169,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             district:
               typeof user.district === "string"
                 ? user.district
-                : user.district?._id ?? user.district?.id,
+                : (districtObj?._id ?? districtObj?.id),
+            districtName: districtObj?.name,
+            address: user.address,
+            createdAt: user.createdAt,
           },
         });
         return true;
@@ -148,14 +182,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     };
 
     const storedToken =
-      typeof window !== "undefined" ? window.localStorage.getItem("authToken") : null;
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("authToken")
+        : null;
     let roleHint: UserRole | null = null;
 
     if (storedToken) {
       try {
         const payloadPart = storedToken.split(".")[1];
         if (payloadPart) {
-          const payloadJson = atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/"));
+          const payloadJson = atob(
+            payloadPart.replace(/-/g, "+").replace(/_/g, "/"),
+          );
           const payload = JSON.parse(payloadJson) as { role?: UserRole };
           roleHint = payload.role ?? null;
         }
@@ -181,7 +219,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("authToken");
     }
-    set({ isAuthenticated: false, sessionReady: true, role: "guest", user: null });
+    set({
+      isAuthenticated: false,
+      sessionReady: true,
+      role: "guest",
+      user: null,
+    });
   },
 
   logout: async () => {
@@ -200,8 +243,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("authToken");
     }
-    set({ isAuthenticated: false, sessionReady: true, role: "guest", user: null });
+    set({
+      isAuthenticated: false,
+      sessionReady: true,
+      role: "guest",
+      user: null,
+    });
   },
 
   setLanguage: (lang: Language) => set({ language: lang }),
+
+  updateUser: (patch: Partial<SessionUser>) =>
+    set((state) => ({
+      user: state.user ? { ...state.user, ...patch } : state.user,
+      // Keep the app language in sync with preferredLanguage if it changed
+      ...(patch.preferredLanguage
+        ? { language: patch.preferredLanguage as Language }
+        : {}),
+    })),
 }));

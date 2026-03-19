@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Upload, X, Loader2 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
+import { useSessionStore } from "../../store/sessionStore";
 import * as api from "../../lib/api";
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -103,19 +104,32 @@ function FileZone({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function NewServiceRequestPage() {
+  const { user } = useSessionStore();
   const [step, setStep] = useState(1);
 
   // Step 1
   const [serviceType, setServiceType] = useState("");
   const [requestType, setRequestType] = useState("new_connection");
 
-  // Step 2
-  const [applicantName, setApplicantName] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [streetAddress, setStreetAddress] = useState("");
-  const [state, setState] = useState("");
-  const [district, setDistrict] = useState("");
-  const [pincode, setPincode] = useState("");
+  // Step 2 — pre-fill from profile where available
+  const [applicantName, setApplicantName] = useState(() => user?.name ?? "");
+  const [contactPhone, setContactPhone] = useState(() =>
+    (user?.mobile ?? "").replace(/^\+91/, "").slice(-10),
+  );
+  const [streetAddress, setStreetAddress] = useState(
+    () => user?.address?.street ?? "",
+  );
+  const [state, setState] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
+  });
+  const [district, setDistrict] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    const d = (user?.districtName ?? "").trim();
+    if (!s || !d || !LOCATION_DATA[s]) return "";
+    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
+  });
+  const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Step 3
@@ -132,8 +146,6 @@ export default function NewServiceRequestPage() {
 
   const states = Object.keys(LOCATION_DATA).sort();
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
-  const pincodes =
-    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
 
   const step2Valid =
     applicantName.trim().length > 0 &&
@@ -141,7 +153,7 @@ export default function NewServiceRequestPage() {
     streetAddress.trim().length > 0 &&
     state !== "" &&
     district !== "" &&
-    pincode !== "";
+    pincode.trim().length === 6;
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -339,7 +351,6 @@ export default function NewServiceRequestPage() {
               disabled={!state}
               onChange={(e) => {
                 setDistrict(e.target.value);
-                setPincode("");
               }}
               className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !district ? "border-red-300" : "border-gray-200"}`}
             >
@@ -355,19 +366,17 @@ export default function NewServiceRequestPage() {
             <label className="text-sm font-medium text-gray-600 block mb-1.5">
               Pincode *
             </label>
-            <select
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
               value={pincode}
-              disabled={!district}
-              onChange={(e) => setPincode(e.target.value)}
-              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !pincode ? "border-red-300" : "border-gray-200"}`}
-            >
-              <option value="">-- Select Pincode --</option>
-              {pincodes.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              onChange={(e) =>
+                setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              placeholder="e.g. 110001"
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none ${touched2 && pincode.trim().length !== 6 ? "border-red-300" : "border-gray-200"}`}
+            />
           </div>
 
           <div>

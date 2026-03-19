@@ -74,12 +74,24 @@ export default function OTPPage() {
     setLoading(true);
     try {
       const res = await api.verifyOTP(phone, otp);
+      const user = res.user;
+      const districtObj =
+        typeof user.district === "object" && user.district !== null
+          ? user.district
+          : null;
+
       setCitizenSession({
-        id: res.user.id,
-        name: res.user.name,
-        mobile: res.user.mobile,
-        district: res.user.district,
-        preferredLanguage: res.user.preferredLanguage,
+        id: user.id,
+        name: user.name,
+        mobile: user.mobile,
+        preferredLanguage: user.preferredLanguage,
+        district:
+          typeof user.district === "string"
+            ? user.district
+            : (districtObj?._id ?? (districtObj as any)?.id),
+        districtName: districtObj?.name,
+        address: user.address,
+        createdAt: user.createdAt,
       });
       navigate("/citizen", { replace: true });
     } catch (err: unknown) {
