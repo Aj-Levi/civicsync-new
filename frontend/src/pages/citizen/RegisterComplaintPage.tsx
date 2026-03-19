@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
+import { v4 as uuidv4 } from 'uuid';
+import { addPendingRequest } from '../../lib/db';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+
 import {
   ArrowLeft,
   Camera,
@@ -117,8 +122,6 @@ const URGENCY_OPTIONS: { value: Urgency; label: string; color: string }[] = [
 ];
 
 // ── State → District → Pincode data ───────────────────────────────────────────
-// NOTE: Only Karnal & Panipat are seeded in the DB; other districts will show
-// a "not found" API error until seeded.
 const LOCATION_DATA: Record<string, Record<string, string[]>> = {
   Haryana: {
     Karnal: ["132001", "132022", "132023", "132024"],
@@ -175,13 +178,11 @@ const step3Valid = (
   district !== "" &&
   pincode !== "";
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function RegisterComplaintPage() {
-  const { user } = useSessionStore();
+  const isOnline = useOnlineStatus(); // Network status hook
   const [step, setStep] = useState(1);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
 
-  // Step 2 fields
   const [complaintScope, setComplaintScope] = useState<
     "personal" | "locality" | ""
   >("");
@@ -191,116 +192,40 @@ export default function RegisterComplaintPage() {
   const [photoName, setPhotoName] = useState("");
   const [urgency, setUrgency] = useState<Urgency>("medium");
 
-  // Step 3 location fields — pre-filled from user profile where available
-  const [streetAddress, setStreetAddress] = useState(
-    () => user?.address?.street ?? "",
-  );
-  const [state, setState_] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
-  });
-  const [district, setDistrict] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    const d = (user?.districtName ?? "").trim();
-    if (!s || !d || !LOCATION_DATA[s]) return "";
-    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
-  });
-  const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [state, setState_] = useState("");
+  const [district, setDistrict] = useState("");
+  const [pincode, setPincode] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // Per-step validation touch state (show errors only after Next is clicked)
   const [touched2, setTouched2] = useState(false);
   const [touched3, setTouched3] = useState(false);
 
-  // Verification state
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState("");
   const [showAmbiguousPopup, setShowAmbiguousPopup] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
-  // ── Voice Auto-Fill: read form data from route state ─────────────────────
-  useEffect(() => {
-    const voiceData = (
-      location.state as { voiceFormData?: Record<string, string> }
-    )?.voiceFormData;
-    if (!voiceData) return;
-
-    // Auto-select department
-    if (voiceData.department) {
-      const dept = DEPARTMENTS.find(
-        (d) =>
-          d.key === voiceData.department ||
-          d.code.toLowerCase() === voiceData.department?.toLowerCase(),
-      );
-      if (dept) {
-        setSelectedDept(dept);
-        // Auto-select category if available
-        if (voiceData.category) {
-          const matchedCat = dept.categories.find(
-            (c) => c.toLowerCase() === voiceData.category?.toLowerCase(),
-          );
-          if (matchedCat) setCategory(matchedCat);
-          else setCategory(voiceData.category); // use raw value as fallback
-        }
-        setStep(2); // Skip to step 2 since department is selected
-      }
-    }
-
-    if (voiceData.description) setDescription(voiceData.description);
-    if (
-      voiceData.urgency &&
-      ["low", "medium", "high"].includes(voiceData.urgency)
-    ) {
-      setUrgency(voiceData.urgency as Urgency);
-    }
-    if (voiceData.scope && ["personal", "locality"].includes(voiceData.scope)) {
-      setComplaintScope(voiceData.scope as "personal" | "locality");
-    }
-    if (voiceData.state) {
-      const matchedState = STATES.find(
-        (s) => s.toLowerCase() === voiceData.state?.toLowerCase(),
-      );
-      if (matchedState) {
-        setState_(matchedState);
-        if (voiceData.district) {
-          const districtsForState = Object.keys(
-            LOCATION_DATA[matchedState] ?? {},
-          );
-          const matchedDistrict = districtsForState.find(
-            (d) => d.toLowerCase() === voiceData.district?.toLowerCase(),
-          );
-          if (matchedDistrict) {
-            setDistrict(matchedDistrict);
-            if (voiceData.pincode) {
-              setPincode(voiceData.pincode);
-            }
-          }
-        }
-      }
-    }
-    if (voiceData.streetAddress) setStreetAddress(voiceData.streetAddress);
-
-    // Clear the route state so it doesn't re-apply on re-render
-    window.history.replaceState({}, document.title);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Derived location data
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
+  const pincodes =
+    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
 
   const handleStateChange = (s: string) => {
     setState_(s);
     setDistrict("");
+    setPincode("");
   };
 
   const handleDistrictChange = (d: string) => {
     setDistrict(d);
+    setPincode("");
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,45 +239,60 @@ export default function RegisterComplaintPage() {
     setVerifyError("");
 
     if (complaintScope !== "" && step2Valid(category, description, photoFile)) {
+      if (!isOnline) {
+        setStep(3);
+        return;
+      }
+
       setIsVerifying(true);
 
       try {
-        const formData = new FormData();
-        formData.append("complaint_text", description);
-        formData.append("image", photoFile!);
+        const reader = new FileReader();
+        reader.readAsDataURL(photoFile!);
+        reader.onloadend = async () => {
+          const base64Image = reader.result as string;
 
-        const res = await fetch(`${aiBaseUrl}/verify_complaint`, {
-          method: "POST",
-          body: formData,
-          // Do NOT set Content-Type header — browser sets it automatically
-          // with the correct multipart boundary when using FormData
-        });
+          try {
+            const res = await fetch(
+              `${aiBaseUrl}/verify_complaint`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  complaint_text: description,
+                  image: base64Image,
+                }),
+              }
+            );
 
-        if (!res.ok) throw new Error("Failed to verify complaint");
+            if (!res.ok) throw new Error("Failed to verify complaint");
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (data.status === "true complaint") {
-          setStep(3);
-        } else if (
-          data.status === "Ai_Generated" ||
-          data.status === "fake complaint"
-        ) {
-          setVerifyError(
-            `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`,
-          );
-        } else if (data.status === "unambiguous complaint") {
-          setShowAmbiguousPopup(true);
-        } else {
-          // Fallback for unexpected status
-          setStep(3);
-        }
+            if (data.status === "true complaint") {
+              setStep(3);
+            } else if (
+              data.status === "Ai_Generated" ||
+              data.status === "fake complaint"
+            ) {
+              setVerifyError(
+                `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`
+              );
+            } else if (data.status === "unambiguous complaint") {
+              setShowAmbiguousPopup(true);
+            } else {
+              setStep(3);
+            }
+          } catch (err) {
+            console.error(err);
+            setStep(3); 
+          } finally {
+            setIsVerifying(false);
+          }
+        };
       } catch (err) {
-        console.error(err);
-        // If verification fails due to network error, let them proceed anyway
-        setStep(3);
-      } finally {
         setIsVerifying(false);
+        setStep(3); 
       }
     }
   };
@@ -368,43 +308,78 @@ export default function RegisterComplaintPage() {
     setSubmitError("");
 
     try {
+      if (!isOnline) {
+        const idempotencyKey = uuidv4();
+        
+        await addPendingRequest({
+          id: idempotencyKey,
+          url: `${import.meta.env.VITE_API_URL || '/api'}/complaints`, 
+          method: 'POST',
+          body: {
+            departmentCode: selectedDept.code,
+            category,
+            description,
+            urgency,
+            streetAddress,
+            city: district,
+            state,
+            pincode,
+            districtName: district,
+            photo: photoFile, 
+          },
+          timestamp: Date.now(),
+          type: 'complaint'
+        });
+
+        navigate("/citizen/complaint/confirm", {
+          state: {
+            refNo: `OFFLINE-QUEUED-${idempotencyKey.substring(0, 6).toUpperCase()}`,
+            category: `${selectedDept.icon} ${selectedDept.name} – ${category}`,
+            location: `${district}, ${state} ${pincode}`,
+            department: { name: selectedDept.name },
+            urgency: urgency,
+            offlineQueued: true
+          },
+        });
+        return;
+      }
+
       if (complaintScope === "locality") {
-        // Fetch all district complaints to pass to similar-complaint check
         try {
-          // Use the real API to get previous complaint descriptions for this district
           const prevCompsRes = await api.getDistrictComplaints(district);
           const prevComplaints = prevCompsRes.success
             ? prevCompsRes.descriptions
             : [];
 
-          const checkRes = await fetch(`${aiBaseUrl}/similar-complaint`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prev_complaint: prevComplaints,
-              complaint: description,
-            }),
-          });
+          const checkRes = await fetch(
+            `${aiBaseUrl}/similar-complaint`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prev_complaint: prevComplaints,
+                complaint: description,
+              }),
+            }
+          );
 
           if (checkRes.ok) {
             const checkData = await checkRes.json();
             if (checkData.is_duplicate) {
               setSubmitError(
-                `This complaint appears to be a duplicate: ${checkData.result}`,
+                `This complaint appears to be a duplicate: ${checkData.result}`
               );
               setLoading(false);
-              return; // Halt submission
+              return; 
             }
           }
         } catch (checkErr) {
           console.error("Duplicate check failed, proceeding anyway", checkErr);
-          // If the AI duplicate check server is unreachable, we can choose to proceed or block.
-          // Proceeding for now.
         }
       }
 
       const res = await api.submitComplaint({
-        departmentCode: selectedDept.code, // ← uses exact DB code (ELEC, WATER …)
+        departmentCode: selectedDept.code, 
         category,
         description,
         urgency,
@@ -427,7 +402,7 @@ export default function RegisterComplaintPage() {
       });
     } catch (err: unknown) {
       setSubmitError(
-        err instanceof Error ? err.message : "Failed to submit complaint.",
+        err instanceof Error ? err.message : "Failed to submit complaint."
       );
     } finally {
       setLoading(false);
@@ -436,14 +411,12 @@ export default function RegisterComplaintPage() {
 
   const stepLabel = ["Select Department", "Issue Details", "Location & Submit"];
 
-  // ── Reusable field error message ─────────────────────────────────────────────
   const FieldError = ({ msg }: { msg: string }) => (
     <p className="text-red-500 text-xs mt-1">{msg}</p>
   );
 
   return (
     <div className="min-h-screen bg-[#EEF0FB] px-4 py-4">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={goBack} className="text-gray-600">
           <ArrowLeft size={22} />
@@ -453,7 +426,6 @@ export default function RegisterComplaintPage() {
         </h1>
       </div>
 
-      {/* Progress bar */}
       <div className="flex gap-1.5 mb-1">
         {[1, 2, 3].map((s) => (
           <div
@@ -469,7 +441,6 @@ export default function RegisterComplaintPage() {
       </p>
 
       <AnimatePresence mode="wait">
-        {/* ── Step 1: Department ───────────────────────────────────────────── */}
         {step === 1 && (
           <motion.div
             key="s1"
@@ -523,7 +494,6 @@ export default function RegisterComplaintPage() {
           </motion.div>
         )}
 
-        {/* ── Step 2: Issue Details ─────────────────────────────────────────── */}
         {step === 2 && selectedDept && (
           <motion.div
             key="s2"
@@ -532,13 +502,11 @@ export default function RegisterComplaintPage() {
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Dept badge */}
             <div className="inline-flex items-center gap-2 bg-white rounded-full px-3 py-1.5 text-xs font-semibold text-[#1E3A5F] shadow-sm mb-5">
               <span>{selectedDept.icon}</span>
               <span>{selectedDept.name}</span>
             </div>
 
-            {/* Scope selection — required */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               Is this a personal or locality issue?{" "}
               <span className="text-red-400">*</span>
@@ -578,7 +546,6 @@ export default function RegisterComplaintPage() {
             )}
             <div className="mb-4" />
 
-            {/* Category — required */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               Issue Category <span className="text-red-400">*</span>
             </h2>
@@ -602,7 +569,6 @@ export default function RegisterComplaintPage() {
             )}
             <div className="mb-4" />
 
-            {/* Description — required ≥ 10 chars */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               {t("describeIssue")} <span className="text-red-400">*</span>
               <span className="text-xs text-gray-400 font-normal ml-1">
@@ -631,7 +597,6 @@ export default function RegisterComplaintPage() {
               </span>
             </div>
 
-            {/* Photo — required */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               {t("uploadPhoto")} <span className="text-red-400">*</span>
             </h2>
@@ -670,7 +635,6 @@ export default function RegisterComplaintPage() {
             )}
             <div className="mb-4" />
 
-            {/* Urgency */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               Urgency Level
             </h2>
@@ -699,7 +663,7 @@ export default function RegisterComplaintPage() {
 
             <button
               onClick={goToStep2}
-              disabled={isVerifying}
+              disabled={isVerifying && isOnline} 
               className="w-full py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold btn-touch disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {isVerifying ? (
@@ -713,7 +677,6 @@ export default function RegisterComplaintPage() {
           </motion.div>
         )}
 
-        {/* ── Step 3: Location + Review + Submit ───────────────────────────── */}
         {step === 3 && (
           <motion.div
             key="s3"
@@ -727,7 +690,6 @@ export default function RegisterComplaintPage() {
             </h2>
 
             <div className="bg-white rounded-2xl p-4 shadow-sm mb-4 space-y-3">
-              {/* State dropdown */}
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   State <span className="text-red-400">*</span>
@@ -757,7 +719,6 @@ export default function RegisterComplaintPage() {
                 )}
               </div>
 
-              {/* District dropdown — enabled only after state is selected */}
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   District <span className="text-red-400">*</span>
@@ -792,34 +753,40 @@ export default function RegisterComplaintPage() {
                 )}
               </div>
 
-              {/* Pincode input */}
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   Pincode <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
+                  <select
                     value={pincode}
-                    onChange={(e) =>
-                      setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="e.g. 110001"
-                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                      touched3 && pincode.trim().length !== 6
+                    onChange={(e) => setPincode(e.target.value)}
+                    disabled={!district}
+                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 pr-8 disabled:opacity-50 ${
+                      touched3 && !pincode
                         ? "border-red-300"
                         : "border-gray-200"
                     }`}
+                  >
+                    <option value="">
+                      {district ? "Select pincode…" : "Select district first"}
+                    </option>
+                    {pincodes.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                   />
                 </div>
-                {touched3 && pincode.trim().length !== 6 && (
-                  <FieldError msg="Please enter a valid 6-digit pincode." />
+                {touched3 && !pincode && (
+                  <FieldError msg="Please select a pincode." />
                 )}
               </div>
 
-              {/* Street address — required */}
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   Street / Area <span className="text-red-400">*</span>
@@ -840,7 +807,6 @@ export default function RegisterComplaintPage() {
               </div>
             </div>
 
-            {/* Review summary */}
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               Review Summary
             </h2>
@@ -898,7 +864,6 @@ export default function RegisterComplaintPage() {
         )}
       </AnimatePresence>
 
-      {/* Ambiguous Complaint Warning Popup */}
       <AnimatePresence>
         {showAmbiguousPopup && (
           <>

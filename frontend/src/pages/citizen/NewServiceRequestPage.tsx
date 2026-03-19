@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Upload, X, Loader2 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
-import { useSessionStore } from "../../store/sessionStore";
 import * as api from "../../lib/api";
 
-// ── Config ────────────────────────────────────────────────────────────────────
+import { v4 as uuidv4 } from 'uuid';
+import { addPendingRequest } from '../../lib/db';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+
 const SERVICES = [
   {
     type: "electricity",
@@ -55,7 +57,6 @@ const LOCATION_DATA: Record<string, Record<string, string[]>> = {
   },
 };
 
-// ── File upload zone ──────────────────────────────────────────────────────────
 function FileZone({
   label,
   file,
@@ -102,41 +103,24 @@ function FileZone({
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function NewServiceRequestPage() {
-  const { user } = useSessionStore();
+  const isOnline = useOnlineStatus();
   const [step, setStep] = useState(1);
 
-  // Step 1
   const [serviceType, setServiceType] = useState("");
   const [requestType, setRequestType] = useState("new_connection");
 
-  // Step 2 — pre-fill from profile where available
-  const [applicantName, setApplicantName] = useState(() => user?.name ?? "");
-  const [contactPhone, setContactPhone] = useState(() =>
-    (user?.mobile ?? "").replace(/^\+91/, "").slice(-10),
-  );
-  const [streetAddress, setStreetAddress] = useState(
-    () => user?.address?.street ?? "",
-  );
-  const [state, setState] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
-  });
-  const [district, setDistrict] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    const d = (user?.districtName ?? "").trim();
-    if (!s || !d || !LOCATION_DATA[s]) return "";
-    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
-  });
-  const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
+  const [applicantName, setApplicantName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [streetAddress, setStreetAddress] = useState("");
+  const [state, setState] = useState("");
+  const [district, setDistrict] = useState("");
+  const [pincode, setPincode] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
 
-  // Step 3
   const [idProof, setIdProof] = useState<File | null>(null);
   const [addressProof, setAddressProof] = useState<File | null>(null);
 
-  // Submission
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [touched2, setTouched2] = useState(false);
@@ -146,6 +130,8 @@ export default function NewServiceRequestPage() {
 
   const states = Object.keys(LOCATION_DATA).sort();
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
+  const pincodes =
+    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
 
   const step2Valid =
     applicantName.trim().length > 0 &&
@@ -153,12 +139,52 @@ export default function NewServiceRequestPage() {
     streetAddress.trim().length > 0 &&
     state !== "" &&
     district !== "" &&
-    pincode.trim().length === 6;
+    pincode !== "";
 
   const handleSubmit = async () => {
     setLoading(true);
     setError("");
     try {
+      if (!isOnline) {
+        const idempotencyKey = uuidv4();
+        
+        await addPendingRequest({
+          id: idempotencyKey,
+          url: `${import.meta.env.VITE_API_URL || '/api'}/service-requests`,
+          method: 'POST',
+          body: {
+            serviceType,
+            requestType,
+            applicantName,
+            contactPhone,
+            streetAddress,
+            city: district,
+            state,
+            pincode,
+            districtName: district,
+            additionalNotes: additionalNotes || undefined,
+            id_proof: idProof,
+            address_proof: addressProof
+          },
+          timestamp: Date.now(),
+          type: 'service'
+        });
+
+        navigate("/citizen/service/confirm", { 
+          state: {
+            id: `offline-${idempotencyKey}`,
+            referenceNumber: `OFFLINE-QUEUED-${idempotencyKey.substring(0, 6).toUpperCase()}`,
+            status: "submitted",
+            serviceType: serviceType,
+            requestType: requestType,
+            department: "Pending Sync",
+            district: district,
+            createdAt: new Date().toISOString()
+          } 
+        });
+        return;
+      }
+
       const res = await api.submitServiceRequest({
         serviceType,
         requestType,
@@ -194,7 +220,6 @@ export default function NewServiceRequestPage() {
 
   return (
     <div className="min-h-screen bg-[#EEF0FB] px-4 py-4">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <button
           onClick={() => (step > 1 ? setStep((s) => s - 1) : navigate(-1))}
@@ -207,7 +232,6 @@ export default function NewServiceRequestPage() {
         </h1>
       </div>
 
-      {/* Progress bar */}
       <div className="flex gap-1 mb-1">
         {[1, 2, 3, 4].map((s) => (
           <div
@@ -220,7 +244,6 @@ export default function NewServiceRequestPage() {
         Step {step} of 4: {stepLabels[step - 1]}
       </p>
 
-      {/* ── Step 1: Select Service ────────────────────────────────────────────── */}
       {step === 1 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -275,7 +298,6 @@ export default function NewServiceRequestPage() {
         </motion.div>
       )}
 
-      {/* ── Step 2: Personal & Location Details ──────────────────────────────── */}
       {step === 2 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -351,6 +373,7 @@ export default function NewServiceRequestPage() {
               disabled={!state}
               onChange={(e) => {
                 setDistrict(e.target.value);
+                setPincode("");
               }}
               className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !district ? "border-red-300" : "border-gray-200"}`}
             >
@@ -366,17 +389,19 @@ export default function NewServiceRequestPage() {
             <label className="text-sm font-medium text-gray-600 block mb-1.5">
               Pincode *
             </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
+            <select
               value={pincode}
-              onChange={(e) =>
-                setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              placeholder="e.g. 110001"
-              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none ${touched2 && pincode.trim().length !== 6 ? "border-red-300" : "border-gray-200"}`}
-            />
+              disabled={!district}
+              onChange={(e) => setPincode(e.target.value)}
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !pincode ? "border-red-300" : "border-gray-200"}`}
+            >
+              <option value="">-- Select Pincode --</option>
+              {pincodes.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -410,7 +435,6 @@ export default function NewServiceRequestPage() {
         </motion.div>
       )}
 
-      {/* ── Step 3: Upload Documents ──────────────────────────────────────────── */}
       {step === 3 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -443,7 +467,6 @@ export default function NewServiceRequestPage() {
         </motion.div>
       )}
 
-      {/* ── Step 4: Review & Submit ───────────────────────────────────────────── */}
       {step === 4 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}

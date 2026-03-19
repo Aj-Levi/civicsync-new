@@ -14,6 +14,27 @@ export const submitComplaint = async (
   try {
     const userId = req.user!.id;
 
+    const idempotencyKey = req.headers['x-idempotency-key'] as string;
+
+    if (idempotencyKey) {
+      const existingComplaint = await Complaint.findOne({ idempotencyKey });
+      if (existingComplaint) {
+        res.status(200).json({
+          success: true,
+          message: "Complaint already processed.",
+          complaint: {
+            id: existingComplaint._id,
+            referenceNumber: existingComplaint.referenceNumber,
+            status: existingComplaint.status,
+            category: existingComplaint.category,
+            urgency: existingComplaint.urgency,
+            createdAt: existingComplaint.createdAt,
+          },
+        });
+        return;
+      }
+    }
+
     const {
       departmentCode,
       category,
@@ -109,6 +130,7 @@ export const submitComplaint = async (
       urgency,
       priority: urgency,
       status: "submitted",
+      idempotencyKey, 
       statusHistory: [
         {
           status: "submitted",
@@ -186,11 +208,7 @@ export const getComplaintByRef = async (
   }
 };
 
-// Aggregates complaints by district and returns count, top category, and coords.
-// Query params:
-//   districtId - filter to a specific district ObjectId
-//   days       - look back N days (default 30)
-//   category   - filter by category string
+
 export const getHeatmap = async (
   req: Request,
   res: Response,
@@ -206,7 +224,6 @@ export const getHeatmap = async (
     const since = new Date();
     since.setDate(since.getDate() - parseInt(days, 10));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const match: Record<string, any> = { createdAt: { $gte: since } };
     if (districtId) match.district = districtId;
     if (category) match.category = new RegExp(category, "i");
@@ -261,8 +278,7 @@ export const getHeatmap = async (
   }
 };
 
-// ─── GET /api/complaints/district/:districtName ───────────────────────────────
-// Returns descriptions of all complaints in the specified district
+
 export const getDistrictComplaints = async (
   req: Request,
   res: Response,
@@ -271,7 +287,6 @@ export const getDistrictComplaints = async (
   try {
     const { districtName } = req.params;
 
-    // Find the district by name (case-insensitive)
     const district = await District.findOne({
       name: new RegExp(`^${districtName}$`, "i"),
     });
@@ -281,7 +296,6 @@ export const getDistrictComplaints = async (
       return;
     }
 
-    // Find all complaints for this district and just select the description
     const complaints = await Complaint.find({ district: district._id })
       .select("description")
       .lean();

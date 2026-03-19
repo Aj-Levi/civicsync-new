@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { UserX, Search, HeadphonesIcon } from "lucide-react";
+import { UserX, HeadphonesIcon } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 
 export default function GuestAccessPage() {
