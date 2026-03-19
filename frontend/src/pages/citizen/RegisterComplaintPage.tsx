@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -212,7 +212,63 @@ export default function RegisterComplaintPage() {
   const { user } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
+
+  // ── Voice Auto-Fill: read form data from route state ─────────────────────
+  useEffect(() => {
+    const voiceData = (location.state as { voiceFormData?: Record<string, string> })?.voiceFormData;
+    if (!voiceData) return;
+
+    // Auto-select department
+    if (voiceData.department) {
+      const dept = DEPARTMENTS.find(
+        (d) => d.key === voiceData.department || d.code.toLowerCase() === voiceData.department?.toLowerCase(),
+      );
+      if (dept) {
+        setSelectedDept(dept);
+        // Auto-select category if available
+        if (voiceData.category) {
+          const matchedCat = dept.categories.find(
+            (c) => c.toLowerCase() === voiceData.category?.toLowerCase(),
+          );
+          if (matchedCat) setCategory(matchedCat);
+          else setCategory(voiceData.category); // use raw value as fallback
+        }
+        setStep(2); // Skip to step 2 since department is selected
+      }
+    }
+
+    if (voiceData.description) setDescription(voiceData.description);
+    if (voiceData.urgency && ["low", "medium", "high"].includes(voiceData.urgency)) {
+      setUrgency(voiceData.urgency as Urgency);
+    }
+    if (voiceData.scope && ["personal", "locality"].includes(voiceData.scope)) {
+      setComplaintScope(voiceData.scope as "personal" | "locality");
+    }
+    if (voiceData.state) {
+      const matchedState = STATES.find((s) => s.toLowerCase() === voiceData.state?.toLowerCase());
+      if (matchedState) {
+        setState_(matchedState);
+        if (voiceData.district) {
+          const districtsForState = Object.keys(LOCATION_DATA[matchedState] ?? {});
+          const matchedDistrict = districtsForState.find(
+            (d) => d.toLowerCase() === voiceData.district?.toLowerCase(),
+          );
+          if (matchedDistrict) {
+            setDistrict(matchedDistrict);
+            if (voiceData.pincode) {
+              setPincode(voiceData.pincode);
+            }
+          }
+        }
+      }
+    }
+    if (voiceData.streetAddress) setStreetAddress(voiceData.streetAddress);
+
+    // Clear the route state so it doesn't re-apply on re-render
+    window.history.replaceState({}, document.title);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived location data
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
