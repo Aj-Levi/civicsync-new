@@ -1,6 +1,5 @@
 import { Schema, model, Document, Types } from "mongoose";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
 export type ServiceType =
   | "electricity"
   | "water"
@@ -23,39 +22,29 @@ export type ServiceRequestStatus =
 
 export interface IUploadedDocument {
   type: "id_proof" | "address_proof" | "property_document" | "other";
-  url: string; // Cloudinary URL
-  name: string; // original filename
+  url: string; 
+  name: string; 
   uploadedAt: Date;
 }
 
 export interface ISRStatusEntry {
   status: ServiceRequestStatus;
-  updatedBy?: Types.ObjectId; // Admin ObjectId
+  updatedBy?: Types.ObjectId; 
   note?: string;
   timestamp: Date;
 }
 
-/**
- * Service request reference number format: SRQ-YYYYMMDD-XXXXX
- *
- * Application fee is collected via Razorpay (same Payment model used for bills).
- * A receipt is generated on payment (feature 15).
- *
- * On completion, the user's utilityConnections array in User model
- * should be updated with the new connectionNumber assigned by the admin.
- */
 export interface IServiceRequest extends Document {
-  userId: Types.ObjectId; // ref: 'User'
-  assignedAdmin?: Types.ObjectId; // ref: 'Admin'
+  userId: Types.ObjectId; 
+  assignedAdmin?: Types.ObjectId; 
 
-  department: Types.ObjectId; // ref: 'Department'
-  district: Types.ObjectId; // ref: 'District'
+  department: Types.ObjectId; 
+  district: Types.ObjectId; 
 
-  referenceNumber: string; // unique — SRQ-YYYYMMDD-XXXXX
+  referenceNumber: string; 
   serviceType: ServiceType;
   requestType: ConnectionRequestType;
 
-  // Applicant info (may differ from the User profile in edge cases)
   applicantName: string;
   contactPhone: string;
   address: {
@@ -67,24 +56,25 @@ export interface IServiceRequest extends Document {
     pincode: string;
   };
 
-  documents: IUploadedDocument[]; // feature 14 — required ID + address proof
+  documents: IUploadedDocument[]; 
   additionalNotes?: string;
 
   applicationFee: number;
-  paymentId?: Types.ObjectId; // ref: 'Payment'
+  paymentId?: Types.ObjectId; 
 
   status: ServiceRequestStatus;
   statusHistory: ISRStatusEntry[];
 
   estimatedCompletionDate?: Date;
   completedAt?: Date;
-  feedback?: Types.ObjectId; // ref: 'Feedback' — triggered on completion
+  feedback?: Types.ObjectId; 
 
   createdAt: Date;
   updatedAt: Date;
+
+  idempotencyKey?: string;
 }
 
-// ── Sub-schemas ─────────────────────────────────────────────────────────────────
 const documentSchema = new Schema<IUploadedDocument>(
   {
     type: {
@@ -120,7 +110,6 @@ const srStatusEntrySchema = new Schema<ISRStatusEntry>(
   { _id: false },
 );
 
-// ── Main Schema ─────────────────────────────────────────────────────────────────
 const serviceRequestSchema = new Schema<IServiceRequest>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -185,6 +174,7 @@ const serviceRequestSchema = new Schema<IServiceRequest>(
     estimatedCompletionDate: { type: Date },
     completedAt: { type: Date },
     feedback: { type: Schema.Types.ObjectId, ref: "Feedback" },
+    idempotencyKey: { type: String, unique: true, sparse: true },
   },
   { timestamps: true },
 );
@@ -192,6 +182,7 @@ const serviceRequestSchema = new Schema<IServiceRequest>(
 serviceRequestSchema.index({ userId: 1, status: 1 });
 serviceRequestSchema.index({ district: 1, department: 1, status: 1 });
 serviceRequestSchema.index({ assignedAdmin: 1, status: 1 });
+serviceRequestSchema.index({ idempotencyKey: 1 });
 
 export const ServiceRequest = model<IServiceRequest>(
   "ServiceRequest",

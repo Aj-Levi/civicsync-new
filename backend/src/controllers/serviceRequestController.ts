@@ -6,7 +6,6 @@ import { District } from "../models/District";
 import { generateRefNumber } from "../utils/generateRefNumber";
 import { uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
-// Service type -> department code mapping
 const SERVICE_CODE: Record<string, string> = {
   electricity: "ELEC",
   water: "WATER",
@@ -21,6 +20,27 @@ export const submitServiceRequest = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const idempotencyKey = req.headers['x-idempotency-key'] as string;
+
+    if (idempotencyKey) {
+      const existingReq = await ServiceRequest.findOne({ idempotencyKey });
+      if (existingReq) {
+        res.status(200).json({
+          success: true,
+          message: "Service request already processed.",
+          serviceRequest: {
+            id: existingReq._id,
+            referenceNumber: existingReq.referenceNumber,
+            status: existingReq.status,
+            serviceType: existingReq.serviceType,
+            requestType: existingReq.requestType,
+            createdAt: existingReq.createdAt,
+          },
+        });
+        return;
+      }
+    }
+
     const {
       serviceType,
       requestType = "new_connection",
@@ -134,6 +154,7 @@ export const submitServiceRequest = async (
       additionalNotes,
       applicationFee: 0,
       status: "submitted",
+      idempotencyKey, 
       statusHistory: [
         {
           status: "submitted",
@@ -208,4 +229,3 @@ export const getServiceRequestById = async (
     next(err);
   }
 };
-

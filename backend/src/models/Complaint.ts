@@ -50,26 +50,25 @@ export interface IComplaint extends Document {
     pincode: string;
   };
 
-  /** GeoJSON Point for heatmap (2dsphere index) */
   location: {
     type: "Point";
-    coordinates: [number, number]; // [longitude, latitude]
+    coordinates: [number, number]; 
   };
 
-  photoUrl: string; // Cloudinary URL — required by feature 8
-  urgency: ComplaintUrgency; // citizen-set on submission
-  priority: ComplaintPriority; // admin-adjustable for escalation
+  photoUrl: string; 
+  urgency: ComplaintUrgency; 
+  priority: ComplaintPriority; 
   status: ComplaintStatus;
   statusHistory: IStatusHistoryEntry[];
 
   resolvedAt?: Date;
-  feedback?: Types.ObjectId; // ref: 'Feedback' — set after resolution feedback
+  feedback?: Types.ObjectId; 
 
   createdAt: Date;
   updatedAt: Date;
+  idempotencyKey?: string;
 }
 
-// ── Sub-schemas ─────────────────────────────────────────────────────────────────
 const statusHistorySchema = new Schema<IStatusHistoryEntry>(
   {
     status: {
@@ -92,7 +91,6 @@ const statusHistorySchema = new Schema<IStatusHistoryEntry>(
   { _id: false },
 );
 
-// ── Main Schema ─────────────────────────────────────────────────────────────────
 const complaintSchema = new Schema<IComplaint>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -118,10 +116,9 @@ const complaintSchema = new Schema<IComplaint>(
       pincode: { type: String, default: "000000" },
     },
 
-    // GeoJSON for 2dsphere queries (heatmap)
     location: {
       type: { type: String, enum: ["Point"], required: true },
-      coordinates: { type: [Number], required: true }, // [lng, lat]
+      coordinates: { type: [Number], required: true }, 
     },
 
     photoUrl: { type: String, default: "" },
@@ -130,7 +127,7 @@ const complaintSchema = new Schema<IComplaint>(
       type: String,
       enum: ["low", "medium", "high", "critical"],
       default: function (this: IComplaint) {
-        return this.urgency; // initialise priority from citizen's urgency choice
+        return this.urgency; 
       },
     },
     status: {
@@ -149,14 +146,16 @@ const complaintSchema = new Schema<IComplaint>(
 
     resolvedAt: { type: Date },
     feedback: { type: Schema.Types.ObjectId, ref: "Feedback" },
+    idempotencyKey: { type: String, unique: true, sparse: true },
+    
   },
   { timestamps: true },
 );
 
-// Geospatial index for heatmap queries
 complaintSchema.index({ location: "2dsphere" });
 complaintSchema.index({ district: 1, status: 1 });
 complaintSchema.index({ userId: 1, createdAt: -1 });
 complaintSchema.index({ assignedAdmin: 1, status: 1 });
+complaintSchema.index({ idempotencyKey: 1 });
 
 export const Complaint = model<IComplaint>("Complaint", complaintSchema);
