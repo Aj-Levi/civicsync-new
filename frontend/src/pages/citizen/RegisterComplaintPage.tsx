@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { v4 as uuidv4 } from 'uuid';
@@ -176,9 +176,11 @@ const step3Valid = (
   streetAddress.trim().length > 0 &&
   state !== "" &&
   district !== "" &&
-  pincode !== "";
+  pincode.length === 6 &&
+  /^\d{6}$/.test(pincode);
 
 export default function RegisterComplaintPage() {
+  const { user } = useSessionStore();
   const isOnline = useOnlineStatus(); // Network status hook
   const [step, setStep] = useState(1);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
@@ -192,10 +194,21 @@ export default function RegisterComplaintPage() {
   const [photoName, setPhotoName] = useState("");
   const [urgency, setUrgency] = useState<Urgency>("medium");
 
-  const [streetAddress, setStreetAddress] = useState("");
-  const [state, setState_] = useState("");
-  const [district, setDistrict] = useState("");
-  const [pincode, setPincode] = useState("");
+  // Step 3 location fields — pre-filled from user profile where available
+  const [streetAddress, setStreetAddress] = useState(
+    () => user?.address?.street ?? "",
+  );
+  const [state, setState_] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
+  });
+  const [district, setDistrict] = useState(() => {
+    const s = (user?.address?.state ?? "").trim();
+    const d = (user?.districtName ?? "").trim();
+    if (!s || !d || !LOCATION_DATA[s]) return "";
+    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
+  });
+  const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
 
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -208,24 +221,86 @@ export default function RegisterComplaintPage() {
   const [showAmbiguousPopup, setShowAmbiguousPopup] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useSessionStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const aiBaseUrl = import.meta.env.VITE_AI_API_URL as string;
 
+  // ── Voice Auto-Fill: read form data from route state ─────────────────────
+  useEffect(() => {
+    const voiceData = (
+      location.state as { voiceFormData?: Record<string, string> }
+    )?.voiceFormData;
+    if (!voiceData) return;
+
+    // Auto-select department
+    if (voiceData.department) {
+      const dept = DEPARTMENTS.find(
+        (d) =>
+          d.key === voiceData.department ||
+          d.code.toLowerCase() === voiceData.department?.toLowerCase(),
+      );
+      if (dept) {
+        setSelectedDept(dept);
+        // Auto-select category if available
+        if (voiceData.category) {
+          const matchedCat = dept.categories.find(
+            (c) => c.toLowerCase() === voiceData.category?.toLowerCase(),
+          );
+          if (matchedCat) setCategory(matchedCat);
+          else setCategory(voiceData.category); // use raw value as fallback
+        }
+        setStep(2); // Skip to step 2 since department is selected
+      }
+    }
+
+    if (voiceData.description) setDescription(voiceData.description);
+    if (
+      voiceData.urgency &&
+      ["low", "medium", "high"].includes(voiceData.urgency)
+    ) {
+      setUrgency(voiceData.urgency as Urgency);
+    }
+    if (voiceData.scope && ["personal", "locality"].includes(voiceData.scope)) {
+      setComplaintScope(voiceData.scope as "personal" | "locality");
+    }
+    if (voiceData.state) {
+      const matchedState = STATES.find(
+        (s) => s.toLowerCase() === voiceData.state?.toLowerCase(),
+      );
+      if (matchedState) {
+        setState_(matchedState);
+        if (voiceData.district) {
+          const districtsForState = Object.keys(
+            LOCATION_DATA[matchedState] ?? {},
+          );
+          const matchedDistrict = districtsForState.find(
+            (d) => d.toLowerCase() === voiceData.district?.toLowerCase(),
+          );
+          if (matchedDistrict) {
+            setDistrict(matchedDistrict);
+            if (voiceData.pincode) {
+              setPincode(voiceData.pincode);
+            }
+          }
+        }
+      }
+    }
+    if (voiceData.streetAddress) setStreetAddress(voiceData.streetAddress);
+
+    // Clear the route state so it doesn't re-apply on re-render
+    window.history.replaceState({}, document.title);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
-  const pincodes =
-    state && district ? (LOCATION_DATA[state]?.[district] ?? []) : [];
 
   const handleStateChange = (s: string) => {
     setState_(s);
     setDistrict("");
-    setPincode("");
   };
 
   const handleDistrictChange = (d: string) => {
     setDistrict(d);
-    setPincode("");
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -757,33 +832,23 @@ export default function RegisterComplaintPage() {
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
                   Pincode <span className="text-red-400">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    value={pincode}
-                    onChange={(e) => setPincode(e.target.value)}
-                    disabled={!district}
-                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 pr-8 disabled:opacity-50 ${
-                      touched3 && !pincode
-                        ? "border-red-300"
-                        : "border-gray-200"
-                    }`}
-                  >
-                    <option value="">
-                      {district ? "Select pincode…" : "Select district first"}
-                    </option>
-                    {pincodes.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                  />
-                </div>
-                {touched3 && !pincode && (
-                  <FieldError msg="Please select a pincode." />
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={pincode}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setPincode(val);
+                  }}
+                  placeholder="e.g. 110001"
+                  className={`w-full text-sm text-gray-800 bg-gray-50 border rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    touched3 && (pincode.length !== 6 || !/^\d{6}$/.test(pincode))
+                      ? "border-red-300"
+                      : "border-gray-200"
+                  }`}
+                />
+                {touched3 && (pincode.trim().length !== 6 || !/^\d{6}$/.test(pincode)) && (
+                  <FieldError msg="Please enter a valid 6-digit pincode." />
                 )}
               </div>
 
