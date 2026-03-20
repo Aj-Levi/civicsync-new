@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, X, Send, Bot, Loader2, Volume2 } from "lucide-react";
+import { Mic, MicOff, X, Send, Loader2, Volume2 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { aiResponses } from "../../data/dummyData";
 
