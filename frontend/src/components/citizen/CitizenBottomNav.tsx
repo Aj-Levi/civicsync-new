@@ -6,6 +6,7 @@ import {
   Search,
   HeadphonesIcon,
 } from "lucide-react";
+import { useTranslation } from "../../lib/i18n";
 
 const navItems = [
   { to: "/citizen", icon: Home, labelKey: "welcome", end: true },
@@ -26,6 +27,7 @@ const navItems = [
 ];
 
 export default function CitizenBottomNav() {
+  const { t } = useTranslation();
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex">
       {navItems.map(({ to, icon: Icon, labelKey, end }) => (
@@ -44,14 +46,14 @@ export default function CitizenBottomNav() {
               <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
               <span className="truncate max-w-[56px] text-center leading-tight">
                 {labelKey === "welcome"
-                  ? "Home"
+                  ? t("navHome")
                   : labelKey === "payBills"
-                    ? "Bills"
+                    ? t("navBills")
                     : labelKey === "newServiceRequest"
-                      ? "Services"
+                      ? t("navServices")
                       : labelKey === "trackStatus"
-                        ? "Track"
-                        : "Help"}
+                        ? t("navTrack")
+                        : t("navHelp")}
               </span>
             </>
           )}

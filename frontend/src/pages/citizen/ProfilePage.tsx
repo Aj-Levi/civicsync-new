@@ -60,6 +60,7 @@ function DistrictPicker({
   loading: boolean;
   onChange: (id: string, name: string) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -93,10 +94,10 @@ function DistrictPicker({
       >
         <span className={selected ? "text-gray-800" : "text-gray-400"}>
           {loading
-            ? "Loading districts…"
+            ? t("loadingDistricts")
             : selected
               ? `${selected.name}, ${selected.state}`
-              : "Select district"}
+              : t("selectDistrict2")}
         </span>
         <ChevronDown size={14} className="text-gray-400 shrink-0 ml-2" />
       </button>
@@ -117,7 +118,7 @@ function DistrictPicker({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search districts…"
+                placeholder={t("searchDistricts")}
                 className="flex-1 text-sm text-gray-800 bg-transparent outline-none"
               />
             </div>
@@ -125,7 +126,7 @@ function DistrictPicker({
             <ul className="max-h-48 overflow-y-auto divide-y divide-gray-50">
               {filtered.length === 0 ? (
                 <li className="px-4 py-3 text-sm text-gray-400 text-center">
-                  No results
+                  {t("noResults")}
                 </li>
               ) : (
                 filtered.map((d) => (
@@ -317,7 +318,7 @@ export default function ProfilePage() {
             className="flex items-center gap-1.5 text-xs font-semibold text-[#1E3A5F] bg-white px-3 py-2 rounded-xl shadow-sm"
           >
             <Pencil size={13} />
-            Edit
+            {t("edit")}
           </button>
         )}
       </div>
@@ -354,26 +355,26 @@ export default function ProfilePage() {
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-50">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <User size={11} /> Personal Details
+                  <User size={11} /> {t("personalDetails")}
                 </p>
               </div>
               <div className="px-4 py-4 space-y-3">
                 {/* Name */}
                 <div>
                   <label className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1 block">
-                    Full Name *
+                    {t("fullNameRequired")}
                   </label>
                   <input
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Your full name"
+                    placeholder={t("yourFullName")}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/30"
                   />
                 </div>
                 {/* Mobile (read-only) */}
                 <div>
                   <label className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1 block">
-                    Mobile (non-editable)
+                    {t("mobileNonEditable")}
                   </label>
                   <div className="flex items-center bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500">
                     <Phone size={13} className="mr-2 shrink-0" />
@@ -387,14 +388,14 @@ export default function ProfilePage() {
             <div className="bg-white rounded-2xl shadow-sm h-fit">
               <div className="px-4 py-3 border-b border-gray-50">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Languages size={11} /> Preferences
+                  <Languages size={11} /> {t("preferences")}
                 </p>
               </div>
               <div className="px-4 py-4 space-y-3">
                 {/* Language picker */}
                 <div>
                   <label className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-2 block">
-                    Preferred Language
+                    {t("preferredLanguage")}
                   </label>
                   <div className="flex gap-2">
                     {LANG_OPTIONS.map((lang) => (
@@ -417,7 +418,7 @@ export default function ProfilePage() {
                 {/* District picker */}
                 <div>
                   <label className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1 block">
-                    District
+                    {t("districtPicker")}
                   </label>
                   <DistrictPicker
                     value={formDistrictId}
@@ -436,45 +437,45 @@ export default function ProfilePage() {
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-50">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Home size={11} /> Address
+                  <Home size={11} /> {t("addressSection")}
                 </p>
               </div>
               <div className="px-4 py-4 grid grid-cols-2 gap-3">
                 <div className="col-span-1">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    House / Flat No.
+                    {t("houseNo")}
                   </label>
-                  {addrField("houseNo", "e.g. 12B")}
+                  {addrField("houseNo", t("houseNoHint"))}
                 </div>
                 <div className="col-span-1">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    Pincode
+                    {t("pincode")}
                   </label>
-                  {addrField("pincode", "e.g. 160015")}
+                  {addrField("pincode", t("pincodeAddr"))}
                 </div>
                 <div className="col-span-2">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    Street / Colony
+                    {t("streetColony")}
                   </label>
-                  {addrField("street", "e.g. Sector 15, Phase 2")}
+                  {addrField("street", t("streetColonyHint"))}
                 </div>
                 <div className="col-span-2">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    Landmark
+                    {t("landmark")}
                   </label>
-                  {addrField("landmark", "e.g. Near City Mall")}
+                  {addrField("landmark", t("landmarkHint"))}
                 </div>
                 <div className="col-span-1">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    City
+                    {t("cityLabel")}
                   </label>
-                  {addrField("city", "e.g. Chandigarh")}
+                  {addrField("city", t("cityHint"))}
                 </div>
                 <div className="col-span-1">
                   <label className="text-[11px] text-gray-400 mb-1 block">
-                    State
+                    {t("stateProfile")}
                   </label>
-                  {addrField("state", "e.g. Punjab")}
+                  {addrField("state", t("statePh"))}
                 </div>
               </div>
             </div>
@@ -598,7 +599,7 @@ export default function ProfilePage() {
               </p>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Session started</span>
+                  <span className="text-gray-500">{t("sessionStarted")}</span>
                   <span className="font-medium text-gray-800">
                     {new Date().toLocaleTimeString("en-IN", {
                       hour: "2-digit",
@@ -607,15 +608,15 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Session timeout</span>
+                  <span className="text-gray-500">{t("sessionTimeout")}</span>
                   <span className="font-medium text-gray-800">
-                    60 seconds of inactivity
+                    {t("sessionTimeoutValue")}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Role</span>
+                  <span className="text-gray-500">{t("roleLabel")}</span>
                   <span className="font-medium text-green-600 capitalize">
-                    Citizen
+                    {t("citizenRole")}
                   </span>
                 </div>
               </div>

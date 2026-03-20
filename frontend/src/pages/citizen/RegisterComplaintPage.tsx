@@ -19,6 +19,8 @@ import {
 import { useTranslation } from "../../lib/i18n";
 import { useSessionStore } from "../../store/sessionStore";
 import * as api from "../../lib/api";
+import MascotGuide from "../../components/shared/MascotGuide";
+import type { MascotEmotion } from "../../components/shared/MascotGuide";
 
 // ── Department config — `code` must match backend seed codes ──────────────────
 type Urgency = "low" | "medium" | "high";
@@ -530,9 +532,46 @@ export default function RegisterComplaintPage() {
           />
         ))}
       </div>
-      <p className="text-xs text-gray-400 mb-5">
+      <p className="text-xs text-gray-400 mb-3">
         Step {step} of 3 — {stepLabel[step - 1]}
       </p>
+
+      {/* ── Animated Mascot Guide ──────────────────────────────────── */}
+      {(() => {
+        let emotion: MascotEmotion = "happy";
+        let msg = "";
+        if (step === 1) {
+          emotion = "happy";
+          msg = "Hi! Which department can I help with?";
+        } else if (step === 2) {
+          if (isVerifying) {
+            emotion = "thinking_ai";
+            msg = "Let me verify your image…";
+          } else if (verifyError) {
+            emotion = "sorry";
+            msg = "Oops! Please check the issue above.";
+          } else {
+            emotion = "pointing";
+            msg = "Fill in the details below!";
+          }
+        } else if (step === 3) {
+          if (loading) {
+            emotion = "loading";
+            msg = "Submitting your complaint…";
+          } else {
+            emotion = "neutral";
+            msg = "Almost done! Add your location.";
+          }
+        }
+        return (
+          <MascotGuide
+            emotion={emotion}
+            message={msg}
+            size="sm"
+            className="mb-4"
+          />
+        );
+      })()}
 
       <AnimatePresence mode="wait">
         {step === 1 && (
@@ -965,9 +1004,11 @@ export default function RegisterComplaintPage() {
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm z-50 bg-white rounded-2xl p-5 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-3">
-                  <AlertTriangle size={24} />
-                </div>
+                <MascotGuide
+                  emotion="thinking"
+                  size="sm"
+                  className="justify-center mb-2"
+                />
                 <h3 className="text-lg font-bold text-gray-800 mb-2">
                   Ambiguous Complaint
                 </h3>

@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 import * as api from "../../lib/api";
+import MascotGuide from "../../components/shared/MascotGuide";
+import type { MascotEmotion } from "../../components/shared/MascotGuide";
 import type {
   CitizenServiceRequest,
   CitizenPayment,
@@ -873,6 +875,43 @@ export default function TrackStatusPage() {
         <p className="text-red-500 text-xs text-center mb-3">{searchError}</p>
       )}
 
+      {/* ── Animated Mascot Guide ──────────────────────────────────── */}
+      {(() => {
+        let emotion: MascotEmotion = "happy";
+        let msg = "";
+        const isLoading = (tab === "complaints" && loadingC) ||
+          (tab === "requests" && loadingSR) ||
+          (tab === "payments" && loadingP);
+
+        if (searchError) {
+          emotion = "sorry";
+          msg = t("mascotCantFindRef");
+        } else if (isLoading) {
+          emotion = "loading";
+          msg = t("mascotFetchingRecords");
+        } else if (tab === "complaints" && !loadingC && displayComplaints.length === 0) {
+          emotion = "neutral";
+          msg = t("mascotNoComplaints");
+        } else if (tab === "requests" && !loadingSR && srs.length === 0) {
+          emotion = "neutral";
+          msg = t("mascotNoRequests");
+        } else if (tab === "payments" && !loadingP && payments.length === 0 && bills.length === 0) {
+          emotion = "neutral";
+          msg = t("mascotNoPayments");
+        } else {
+          emotion = "happy";
+          msg = t("mascotStatusOverview");
+        }
+        return (
+          <MascotGuide
+            emotion={emotion}
+            message={msg}
+            size="sm"
+            className="mb-4"
+          />
+        );
+      })()}
+
       {/* Tabs */}
       {!searchResult && (
         <div className="flex gap-1 bg-white rounded-2xl p-1 mb-5 shadow-sm">
@@ -886,10 +925,10 @@ export default function TrackStatusPage() {
               className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${tab === t_ ? "bg-[#1E3A5F] text-white shadow" : "text-gray-500"}`}
             >
               {t_ === "complaints"
-                ? `Complaints${complaints.length > 0 ? ` (${complaints.length})` : ""}`
+                ? `${t("complaintsTab")}${complaints.length > 0 ? ` (${complaints.length})` : ""}`
                 : t_ === "requests"
-                  ? `Requests${srs.length > 0 ? ` (${srs.length})` : ""}`
-                  : `Payments${payments.length + bills.length > 0 ? ` (${payments.length + bills.length})` : ""}`}
+                  ? `${t("requestsTab")}${srs.length > 0 ? ` (${srs.length})` : ""}`
+                  : `${t("paymentsTab")}${payments.length + bills.length > 0 ? ` (${payments.length + bills.length})` : ""}`}
             </button>
           ))}
         </div>

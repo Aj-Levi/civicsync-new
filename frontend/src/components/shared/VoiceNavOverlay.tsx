@@ -23,14 +23,14 @@ export default function VoiceNavOverlay() {
       <motion.button
         whileTap={{ scale: 0.9 }}
         onClick={toggle}
-        className={`fixed bottom-16 left-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors duration-300 ${
+        className={`fixed bottom-16 left-4 z-40 w-16 h-16 rounded-full shadow-lg flex items-end justify-center pt-2 transition-colors duration-300 ${
           isEnabled
             ? "bg-emerald-600 text-white"
-            : "bg-gray-300 text-gray-600"
+            : "bg-white text-gray-600 border border-gray-200"
         }`}
         title={isEnabled ? "Disable Voice Navigation" : "Enable Voice Navigation"}
       >
-        <Power size={22} />
+        <img src="/mascot/split_3_1.png" alt="Voice Mascot" className="w-12 h-12 object-contain drop-shadow" draggable={false} />
       </motion.button>
 
       {/* ── Phase Indicator ───────────────────────────── */}

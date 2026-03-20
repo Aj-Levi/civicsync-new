@@ -15,6 +15,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
+import MascotGuide from "../../components/shared/MascotGuide";
 import {
   getMyBills,
   getMyComplaints,
@@ -307,6 +308,12 @@ export default function CitizenDashboard() {
 
       <div className="px-4 pt-4 space-y-5">
         <section>
+          <MascotGuide
+            emotion="happy"
+            message={t("mascotWelcomeBack")}
+            size="sm"
+            className="mb-3"
+          />
           <h2 className="text-lg font-bold text-gray-800 mb-3">
             {t("civicServices")}
           </h2>
@@ -370,10 +377,9 @@ export default function CitizenDashboard() {
           ) : activity.length === 0 ? (
             <div className="bg-white rounded-2xl px-4 py-8 shadow-sm flex flex-col items-center gap-2 text-gray-400">
               <Clock size={28} className="opacity-40" />
-              <p className="text-sm font-medium">No recent activity yet.</p>
+              <p className="text-sm font-medium">{t("noRecentActivity")}</p>
               <p className="text-xs text-center">
-                Your complaints, service requests, and payments will appear
-                here.
+                {t("activityAppearHere")}
               </p>
             </div>
           ) : (
@@ -424,7 +430,7 @@ export default function CitizenDashboard() {
               onClick={() => navigate("/citizen/track")}
               className="mt-5 w-full bg-civic-orange text-white rounded-2xl py-3.5 flex items-center justify-center font-semibold text-sm shadow-md shadow-orange-200 hover:bg-orange-700 transition-colors"
             >
-              View all activity →
+              {t("viewAllActivity")}
             </button>
           )}
         </section>

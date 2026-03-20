@@ -1,7 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle, Search, Home } from "lucide-react";
+import { Search, Home } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
+import MascotGuide from "../../components/shared/MascotGuide";
 
 export default function ComplaintConfirmationPage() {
   const { state } = useLocation();
@@ -27,8 +28,8 @@ export default function ComplaintConfirmationPage() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", bounce: 0.4 }}
       >
-        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-          <CheckCircle size={44} className="text-green-500" />
+        <div className="flex items-center justify-center mx-auto mb-2">
+          <MascotGuide emotion="celebration" size="lg" />
         </div>
       </motion.div>
 
@@ -42,7 +43,7 @@ export default function ComplaintConfirmationPage() {
           {t("complaintFiled")}
         </h1>
         <p className="text-gray-500 text-sm">
-          We will look into this and update you shortly.
+          {t("weWillLookInto")}
         </p>
       </motion.div>
 
@@ -54,10 +55,10 @@ export default function ComplaintConfirmationPage() {
       >
         {[
           [t("complaintId"), refNo ?? "CMP-2026-XXXX"],
-          ["Category", category ?? "Civic Issue"],
-          ["Location", location ?? "Chandigarh"],
+          [t("complaintCategory"), category ?? "Civic Issue"],
+          [t("complaintLocation"), location ?? "Chandigarh"],
           [t("estimatedResolution"), resolutionDate],
-          ["Status", "🟡 Pending Review"],
+          [t("complaintStatus"), t("statusPendingReview")],
         ].map(([label, val]) => (
           <div
             key={String(label)}
