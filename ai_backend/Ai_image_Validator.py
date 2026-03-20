@@ -65,18 +65,45 @@ def Verify_Complaint(image_path, complaint_text):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-    prompt = f"""
-        You are an AI complaint verification agent. 
-        Analyze the attached image against the user's complaint text: "{complaint_text}".
-        
-        Determine the status based on these exact rules:
-        1. If the image clearly shows the issue (e.g., broken road shown as broken): return "true complaint"
-        2. If the complaint cannot be visually proven or disproven by a photo (e.g., streetlight not working, bad smell, power outage): return "unambiguous complaint"
-        3. If the image clearly contradicts the complaint (e.g., complains about a broken road but shows a perfectly smooth road): return "fake complaint"
-        
-        Output ONLY a valid JSON object in this format: {{"status": "<your_status_choice>"}}
-        Do not include markdown tags like ```json.
-    """
+    prompt = f"""You are a strict AI complaint verification agent for a civic services platform.
+Your job is to determine whether the uploaded image is a genuine visual evidence for the user's complaint.
+
+User's complaint text: "{complaint_text}"
+
+Follow these rules STRICTLY and IN ORDER:
+
+STEP 1 — RELEVANCE CHECK:
+Look at the image content. Does it show ANY kind of civic, infrastructure, public-service, 
+or environmental issue (e.g., broken roads, fallen poles, garbage, water leaks, damaged wires, 
+potholes, overflowing drains, faulty streetlights, etc.)?
+
+If the image shows NONE of these and instead shows:
+- Religious imagery, idols, temples, deities
+- Selfies, portraits, or people posing
+- Food, animals, nature/landscape photos
+- Memes, screenshots, artwork, drawings
+- Random objects unrelated to civic issues
+- Any content that has NO connection to infrastructure, public services, or civic complaints
+
+→ Return: {{"status": "irrelevant image"}}
+
+STEP 2 — MATCH CHECK (only if image passed Step 1):
+Does the image specifically match the complaint described?
+For example, if the complaint is about "electricity pole broken" the image must show 
+an electricity pole or electrical infrastructure with visible damage.
+
+- If the image clearly shows the issue described in the complaint → Return: {{"status": "true complaint"}}
+- If the complaint describes an issue that cannot be visually verified in a photo 
+  (e.g., "power outage", "bad smell", "noise complaint", "intermittent water supply") 
+  → Return: {{"status": "unambiguous complaint"}}
+- If the image shows civic infrastructure but clearly does NOT match the complaint 
+  (e.g., complaint says "broken road" but image shows a perfectly intact road, 
+  or complaint says "water leak" but image shows electrical equipment with no water) 
+  → Return: {{"status": "fake complaint"}}
+
+Output ONLY a valid JSON object in this format: {{"status": "<your_status_choice>"}}
+Do not include markdown tags like ```json.
+"""
 
     try:
         response = client.models.generate_content(

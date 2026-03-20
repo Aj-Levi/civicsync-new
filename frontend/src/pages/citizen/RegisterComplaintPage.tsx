@@ -324,6 +324,10 @@ export default function RegisterComplaintPage() {
       try {
         const reader = new FileReader();
         reader.readAsDataURL(photoFile!);
+        reader.onerror = () => {
+          setVerifyError("Failed to read the image file. Please try again.");
+          setIsVerifying(false);
+        };
         reader.onloadend = async () => {
           const base64Image = reader.result as string;
 
@@ -340,12 +344,14 @@ export default function RegisterComplaintPage() {
               }
             );
 
-            if (!res.ok) throw new Error("Failed to verify complaint");
+            if (!res.ok) throw new Error("Verification service unavailable. Please try again later.");
 
             const data = await res.json();
 
             if (data.status === "true complaint") {
               setStep(3);
+            } else if (data.status === "unambiguous complaint") {
+              setShowAmbiguousPopup(true);
             } else if (
               data.status === "Ai_Generated" ||
               data.status === "fake complaint"
@@ -353,21 +359,34 @@ export default function RegisterComplaintPage() {
               setVerifyError(
                 `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`
               );
-            } else if (data.status === "unambiguous complaint") {
-              setShowAmbiguousPopup(true);
+            } else if (data.status === "irrelevant image") {
+              setVerifyError(
+                "Cannot proceed: The uploaded image does not appear to be related to any civic issue. Please upload a photo that shows the actual problem."
+              );
+            } else if (data.status === "error") {
+              setVerifyError(
+                data.message || "Verification failed. Please try again."
+              );
             } else {
-              setStep(3);
+              // Unknown status — don't silently proceed, show a warning
+              setVerifyError(
+                "Could not verify the complaint image. Please try uploading a clearer photo of the issue."
+              );
             }
           } catch (err) {
             console.error(err);
-            setStep(3); 
+            setVerifyError(
+              err instanceof Error ? err.message : "Verification failed. Please check your connection and try again."
+            );
           } finally {
             setIsVerifying(false);
           }
         };
       } catch (err) {
         setIsVerifying(false);
-        setStep(3); 
+        setVerifyError(
+          "Failed to process the image. Please try again."
+        );
       }
     }
   };

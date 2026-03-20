@@ -1,7 +1,7 @@
 import os
 import json
 import httpx
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -12,7 +12,6 @@ from typing import List, Optional
 from Similar_complaint import check_complaint
 from ChatBot import Query_answer
 from Ai_image_Validator import process_complaint
-import shutil
 import tempfile
 
 load_dotenv()
@@ -64,26 +63,42 @@ def get_answer(request_data: Question):
     response = Query_answer(request_data.que)
     return response
 
+class VerifyComplaintRequest(BaseModel):
+    complaint_text: str
+    image: str  # base64 data URL (e.g., "data:image/jpeg;base64,...")
+
 @app.post("/verify_complaint")
-async def verify_complaint(
-    complaint_text: str = Form(...),
-    image: UploadFile = File(...)
-):
-    _, ext = os.path.splitext(image.filename)
-    
-    if not ext:
+async def verify_complaint(req: VerifyComplaintRequest):
+    import base64 as b64
+
+    # Strip the data URL prefix if present (e.g., "data:image/jpeg;base64,")
+    image_data = req.image
+    if "," in image_data:
+        header, image_data = image_data.split(",", 1)
+        # Extract extension from header like "data:image/png;base64"
+        ext = ".jpg"  # default
+        if "image/" in header:
+            fmt = header.split("image/")[1].split(";")[0].split(")")[0]
+            ext = f".{fmt}" if fmt else ".jpg"
+    else:
         ext = ".jpg"
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
-        shutil.copyfileobj(image.file, temp_file)
-        temp_path = temp_file.name
-        
     try:
-        result = process_complaint(temp_path, complaint_text)
+        image_bytes = b64.b64decode(image_data)
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Invalid base64 image data"}
+        )
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+        temp_file.write(image_bytes)
+        temp_path = temp_file.name
+
+    try:
+        result = process_complaint(temp_path, req.complaint_text)
         return JSONResponse(content=result)
-        
     finally:
-        image.file.close() 
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
