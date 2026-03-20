@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Volume2, Loader2, AlertCircle, Power } from "lucide-react";
+import { Mic, MicOff, Volume2, Loader2, AlertCircle } from "lucide-react";
 import { useVoiceNavStore } from "../../store/voiceNavStore";
 import { useVoiceNavigation } from "../../hooks/useVoiceNavigation";
 
