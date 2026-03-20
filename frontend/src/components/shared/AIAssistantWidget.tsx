@@ -264,11 +264,11 @@ export default function AIAssistantWidget() {
       <motion.button
         whileTap={{ scale: 0.92 }}
         onClick={handleOpen}
-        className="fixed bottom-16 right-4 z-40 w-14 h-14 rounded-full bg-[#1E3A5F] shadow-lg flex items-center justify-center text-white"
+        className="fixed bottom-16 right-4 z-40 w-16 h-16 rounded-full bg-[#1E3A5F] shadow-lg flex items-center justify-center text-white"
         title="AI Assistant"
       >
-        <Bot size={24} />
-        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+        <img src="/mascot/split_1_1.png" alt="Chatbot Mascot" className="w-12 h-12 object-contain drop-shadow" draggable={false} />
+        <span className="absolute 1 top-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
       </motion.button>
 
       {/* Chat Panel */}
@@ -285,7 +285,7 @@ export default function AIAssistantWidget() {
             {/* Header */}
             <div className="bg-[#1E3A5F] text-white px-4 py-3 flex items-center justify-between shadow-md z-10">
               <div className="flex items-center gap-2">
-                <Bot size={18} />
+                <img src="/mascot/split_1_1.png" alt="Mascot" className="w-6 h-6 object-contain" draggable={false} />
                 <span className="font-semibold text-sm">
                   CivicSync AI Assistant
                 </span>

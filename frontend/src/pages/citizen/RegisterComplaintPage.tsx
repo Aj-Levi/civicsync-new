@@ -19,6 +19,8 @@ import {
 import { useTranslation } from "../../lib/i18n";
 import { useSessionStore } from "../../store/sessionStore";
 import * as api from "../../lib/api";
+import MascotGuide from "../../components/shared/MascotGuide";
+import type { MascotEmotion } from "../../components/shared/MascotGuide";
 
 // ── Department config — `code` must match backend seed codes ──────────────────
 type Urgency = "low" | "medium" | "high";
@@ -324,6 +326,10 @@ export default function RegisterComplaintPage() {
       try {
         const reader = new FileReader();
         reader.readAsDataURL(photoFile!);
+        reader.onerror = () => {
+          setVerifyError("Failed to read the image file. Please try again.");
+          setIsVerifying(false);
+        };
         reader.onloadend = async () => {
           const base64Image = reader.result as string;
 
@@ -340,12 +346,14 @@ export default function RegisterComplaintPage() {
               }
             );
 
-            if (!res.ok) throw new Error("Failed to verify complaint");
+            if (!res.ok) throw new Error("Verification service unavailable. Please try again later.");
 
             const data = await res.json();
 
             if (data.status === "true complaint") {
               setStep(3);
+            } else if (data.status === "unambiguous complaint") {
+              setShowAmbiguousPopup(true);
             } else if (
               data.status === "Ai_Generated" ||
               data.status === "fake complaint"
@@ -353,21 +361,34 @@ export default function RegisterComplaintPage() {
               setVerifyError(
                 `Cannot proceed: This issue has been flagged as a ${data.status.replace("_", " ")}.`
               );
-            } else if (data.status === "unambiguous complaint") {
-              setShowAmbiguousPopup(true);
+            } else if (data.status === "irrelevant image") {
+              setVerifyError(
+                "Cannot proceed: The uploaded image does not appear to be related to any civic issue. Please upload a photo that shows the actual problem."
+              );
+            } else if (data.status === "error") {
+              setVerifyError(
+                data.message || "Verification failed. Please try again."
+              );
             } else {
-              setStep(3);
+              // Unknown status — don't silently proceed, show a warning
+              setVerifyError(
+                "Could not verify the complaint image. Please try uploading a clearer photo of the issue."
+              );
             }
           } catch (err) {
             console.error(err);
-            setStep(3); 
+            setVerifyError(
+              err instanceof Error ? err.message : "Verification failed. Please check your connection and try again."
+            );
           } finally {
             setIsVerifying(false);
           }
         };
       } catch (err) {
         setIsVerifying(false);
-        setStep(3); 
+        setVerifyError(
+          "Failed to process the image. Please try again."
+        );
       }
     }
   };
@@ -511,9 +532,46 @@ export default function RegisterComplaintPage() {
           />
         ))}
       </div>
-      <p className="text-xs text-gray-400 mb-5">
+      <p className="text-xs text-gray-400 mb-3">
         Step {step} of 3 — {stepLabel[step - 1]}
       </p>
+
+      {/* ── Animated Mascot Guide ──────────────────────────────────── */}
+      {(() => {
+        let emotion: MascotEmotion = "happy";
+        let msg = "";
+        if (step === 1) {
+          emotion = "happy";
+          msg = "Hi! Which department can I help with?";
+        } else if (step === 2) {
+          if (isVerifying) {
+            emotion = "thinking_ai";
+            msg = "Let me verify your image…";
+          } else if (verifyError) {
+            emotion = "sorry";
+            msg = "Oops! Please check the issue above.";
+          } else {
+            emotion = "pointing";
+            msg = "Fill in the details below!";
+          }
+        } else if (step === 3) {
+          if (loading) {
+            emotion = "loading";
+            msg = "Submitting your complaint…";
+          } else {
+            emotion = "neutral";
+            msg = "Almost done! Add your location.";
+          }
+        }
+        return (
+          <MascotGuide
+            emotion={emotion}
+            message={msg}
+            size="sm"
+            className="mb-4"
+          />
+        );
+      })()}
 
       <AnimatePresence mode="wait">
         {step === 1 && (
@@ -946,9 +1004,11 @@ export default function RegisterComplaintPage() {
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm z-50 bg-white rounded-2xl p-5 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-3">
-                  <AlertTriangle size={24} />
-                </div>
+                <MascotGuide
+                  emotion="thinking"
+                  size="sm"
+                  className="justify-center mb-2"
+                />
                 <h3 className="text-lg font-bold text-gray-800 mb-2">
                   Ambiguous Complaint
                 </h3>

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import MascotGuide from "../../components/shared/MascotGuide";
+import type { MascotEmotion } from "../../components/shared/MascotGuide";
 import { ArrowLeft, Zap, Droplets, Flame, Trash2 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 import { getMyBills, type CitizenBill } from "../../lib/api";
@@ -127,6 +129,33 @@ export default function PayBillsPage() {
         ))}
       </div>
 
+      {/* ── Animated Mascot Guide ──────────────────────────────────── */}
+      {(() => {
+        let emotion: MascotEmotion = "happy";
+        let msg = "";
+        if (loading) {
+          emotion = "loading";
+          msg = t("mascotFetchingBills");
+        } else if (error) {
+          emotion = "sorry";
+          msg = t("mascotCouldntLoadBills");
+        } else if (filtered.length === 0) {
+          emotion = "celebration";
+          msg = t("mascotAllBillsPaid");
+        } else {
+          emotion = "pointing";
+          msg = t("mascotTapToPay");
+        }
+        return (
+          <MascotGuide
+            emotion={emotion}
+            message={msg}
+            size="sm"
+            className="mb-3"
+          />
+        );
+      })()}
+
       {loading && <p className="text-sm text-gray-500">{t("loading")}</p>}
 
       {error && (
@@ -137,7 +166,7 @@ export default function PayBillsPage() {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-xl bg-white p-4 text-sm text-gray-600 shadow-sm">
-          No pending bills found.
+          {t("noPendingBills")}
         </div>
       )}
 

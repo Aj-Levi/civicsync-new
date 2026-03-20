@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, ClipboardList, ArrowRight } from "lucide-react";
+import { ClipboardList, ArrowRight } from "lucide-react";
+import MascotGuide from "../../components/shared/MascotGuide";
+import { useTranslation } from "../../lib/i18n";
 
 interface SRResult {
   referenceNumber: string;
@@ -21,6 +23,7 @@ const SERVICE_ICONS: Record<string, string> = {
 export default function ServiceRequestConfirmPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const sr = state as SRResult | null;
 
   if (!sr) {
@@ -36,17 +39,19 @@ export default function ServiceRequestConfirmPage() {
         transition={{ type: "spring", stiffness: 200 }}
         className="w-full max-w-sm"
       >
-        {/* Success icon */}
+        {/* Success mascot */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <CheckCircle2 size={44} className="text-green-600" />
-          </div>
+          <MascotGuide
+            emotion="celebration"
+            message={t("mascotAppSubmitted")}
+            size="lg"
+            className="justify-center mb-3"
+          />
           <h1 className="text-2xl font-black text-gray-800 text-center">
-            Application Submitted!
+            {t("applicationSubmitted")}
           </h1>
           <p className="text-sm text-gray-500 mt-1 text-center">
-            Your service request has been received and will be reviewed by the
-            department.
+            {t("srReceivedMsg")}
           </p>
         </div>
 
@@ -54,26 +59,26 @@ export default function ServiceRequestConfirmPage() {
         <div className="bg-white rounded-2xl shadow-sm p-5 mb-5 space-y-3 text-sm">
           {/* Ref number highlight */}
           <div className="bg-blue-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-400 mb-1">Reference Number</p>
+            <p className="text-xs text-gray-400 mb-1">{t("referenceNumber")}</p>
             <p className="font-black text-lg text-[#1E3A5F] font-mono tracking-wide">
               {sr.referenceNumber}
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Save this for tracking your application
+              {t("saveForTracking")}
             </p>
           </div>
 
           {[
             [
-              "Service",
+              t("serviceLabel"),
               `${SERVICE_ICONS[sr.serviceType] ?? ""} ${sr.serviceType} Connection`,
             ],
-            ["Request Type", sr.requestType.replace("_", " ")],
-            ["Department", sr.department],
-            ["District", sr.district],
-            ["Status", sr.status],
+            [t("requestTypeLabel"), sr.requestType.replace("_", " ")],
+            [t("departmentLabel"), sr.department],
+            [t("districtLabel"), sr.district],
+            [t("statusLabel"), sr.status],
             [
-              "Submitted On",
+              t("submittedOnLabel"),
               new Date(sr.createdAt).toLocaleDateString("en-IN", {
                 dateStyle: "medium",
               }),
@@ -93,8 +98,7 @@ export default function ServiceRequestConfirmPage() {
 
         {/* Info */}
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-700 mb-5">
-          📋 You will be notified when the department reviews your application.
-          Processing typically takes 7–14 working days.
+          📋 {t("srProcessingNote")}
         </div>
 
         {/* Actions */}
@@ -104,13 +108,13 @@ export default function ServiceRequestConfirmPage() {
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1E3A5F] text-white font-bold"
           >
             <ClipboardList size={18} />
-            Track This Application
+            {t("trackApplication")}
           </button>
           <button
             onClick={() => navigate("/citizen")}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold text-sm"
           >
-            Back to Dashboard <ArrowRight size={15} />
+            {t("backToDashboard")} <ArrowRight size={15} />
           </button>
         </div>
       </motion.div>

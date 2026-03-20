@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import MascotGuide from "../../components/shared/MascotGuide";
+import type { MascotEmotion } from "../../components/shared/MascotGuide";
 import { ArrowLeft, Upload, X, Loader2 } from "lucide-react";
 import { useTranslation } from "../../lib/i18n";
 import { useSessionStore } from "../../store/sessionStore";
@@ -254,9 +256,49 @@ export default function NewServiceRequestPage() {
           />
         ))}
       </div>
-      <p className="text-xs text-gray-400 mb-5">
-        Step {step} of 4: {stepLabels[step - 1]}
+      <p className="text-xs text-gray-400 mb-3">
+        {t("step")} {step} {t("of")} 4: {stepLabels[step - 1]}
       </p>
+
+      {/* ── Animated Mascot Guide ──────────────────────────────────── */}
+      {(() => {
+        let emotion: MascotEmotion = "happy";
+        let msg = "";
+        if (step === 1) {
+          emotion = "happy";
+          msg = t("mascotWhatService");
+        } else if (step === 2) {
+          if (touched2 && !step2Valid) {
+            emotion = "sorry";
+            msg = t("mascotFieldsError");
+          } else {
+            emotion = "pointing";
+            msg = t("mascotFillDetails");
+          }
+        } else if (step === 3) {
+          emotion = "neutral";
+          msg = t("mascotUploadDocs");
+        } else if (step === 4) {
+          if (loading) {
+            emotion = "loading";
+            msg = t("mascotSubmitting");
+          } else if (error) {
+            emotion = "sorry";
+            msg = t("mascotSomethingWrong");
+          } else {
+            emotion = "celebration";
+            msg = t("mascotReviewSubmit");
+          }
+        }
+        return (
+          <MascotGuide
+            emotion={emotion}
+            message={msg}
+            size="sm"
+            className="mb-4"
+          />
+        );
+      })()}
 
       {step === 1 && (
         <motion.div

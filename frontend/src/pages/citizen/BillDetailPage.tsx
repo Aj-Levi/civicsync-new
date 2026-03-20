@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Zap, Droplets, Flame, Trash2 } from "lucide-react";
+import MascotGuide from "../../components/shared/MascotGuide";
 import { useTranslation } from "../../lib/i18n";
 import {
   createPaymentOrder,
@@ -239,6 +240,7 @@ export default function BillDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#EEF0FB] px-4 py-4">
+        <MascotGuide emotion="loading" message={t("mascotLoadingBill")} size="sm" className="mb-3" />
         <p className="text-sm text-gray-500">{t("loading")}</p>
       </div>
     );
@@ -250,6 +252,7 @@ export default function BillDetailPage() {
         <button onClick={() => navigate(-1)} className="text-gray-600 mb-3">
           <ArrowLeft size={22} />
         </button>
+        <MascotGuide emotion="sorry" message={t("mascotBillNotFound")} size="sm" className="mb-3" />
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error ?? "Bill not found."}
         </div>
@@ -408,9 +411,21 @@ export default function BillDetailPage() {
       </motion.div>
 
       {error && (
-        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+        <div className="mb-3">
+          <MascotGuide emotion="sorry" message={t("mascotPaymentFailed")} size="sm" className="mb-2" />
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
         </div>
+      )}
+
+      {!error && (
+        <MascotGuide
+          emotion={isPaying ? "loading" : "pointing"}
+          message={isPaying ? t("mascotProcessingPayment") : t("mascotChoosePayment")}
+          size="sm"
+          className="mb-3"
+        />
       )}
 
       <button

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle, Download, MessageSquare, Home } from "lucide-react";
+import MascotGuide from "../../components/shared/MascotGuide";
 import { useTranslation } from "../../lib/i18n";
 import {
   downloadPaymentReceipt,
@@ -71,6 +72,13 @@ export default function PaymentSuccessPage() {
         </div>
       </motion.div>
 
+      <MascotGuide
+        emotion="celebration"
+        message={t("mascotPaymentSuccess")}
+        size="md"
+        className="justify-center mb-2"
+      />
+
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -80,7 +88,7 @@ export default function PaymentSuccessPage() {
         <h1 className="text-2xl font-bold text-gray-800 font-display mb-1">
           {t("paymentSuccess")}
         </h1>
-        <p className="text-gray-500">Your payment has been processed successfully.</p>
+        <p className="text-gray-500">{t("paymentProcessedOk")}</p>
       </motion.div>
 
       <motion.div
@@ -91,10 +99,10 @@ export default function PaymentSuccessPage() {
       >
         {[
           [t("transactionId"), payment?.id ?? payment?.receiptNumber ?? "-"],
-          ["Receipt", payment?.receiptNumber ?? "-"],
-          ["Service", bill ? `${bill.category} Bill` : "Utility Bill"],
+          [t("receipt"), payment?.receiptNumber ?? "-"],
+          [t("service"), bill ? `${bill.category} Bill` : "Utility Bill"],
           [
-            "Amount",
+            t("amount"),
             payment?.amount != null
               ? `Rs ${payment.amount.toLocaleString("en-IN")}`
               : bill
@@ -102,14 +110,14 @@ export default function PaymentSuccessPage() {
                 : "-",
           ],
           [
-            "Date",
+            t("date"),
             paidDate.toLocaleDateString("en-IN", {
               day: "2-digit",
               month: "short",
               year: "numeric",
             }),
           ],
-          ["Status", payment?.status === "success" ? "Paid" : "Completed"],
+          [t("status"), payment?.status === "success" ? t("paid") : t("approved")],
         ].map(([label, val]) => (
           <div
             key={String(label)}
