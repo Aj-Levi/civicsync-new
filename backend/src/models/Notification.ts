@@ -48,6 +48,7 @@ export interface INotification extends Document {
   department?: Types.ObjectId; // ref: 'Department' — further narrows to dept users
 
   readBy: IReadRecord[];
+  deletedBy: Types.ObjectId[];
 
   expiresAt?: Date; // notifications auto-hide after this date
   isActive: boolean;
@@ -93,6 +94,7 @@ const notificationSchema = new Schema<INotification>(
     department: { type: Schema.Types.ObjectId, ref: "Department" },
 
     readBy: { type: [readRecordSchema], default: [] },
+    deletedBy: { type: [Schema.Types.ObjectId], ref: "User", default: [] },
 
     expiresAt: { type: Date },
     isActive: { type: Boolean, default: true },

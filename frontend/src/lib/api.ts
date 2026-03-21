@@ -823,3 +823,68 @@ export const updateProfile = (payload: UpdateProfilePayload) =>
 
 export const getFullProfile = () =>
   request<{ success: boolean; user: FullCitizenUser }>("/auth/me");
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface ApiNotification {
+  _id: string;
+  sentBy: string;
+  title: string;
+  body: string;
+  type: string;
+  priority: string;
+  district?: string;
+  department?: string;
+  readBy: { userId: string; readAt: string }[];
+  deletedBy: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const getNotifications = () =>
+  request<{ success: boolean; notifications: ApiNotification[] }>(
+    "/notifications",
+  );
+
+export const getAdminNotifications = () =>
+  request<{ success: boolean; notifications: ApiNotification[] }>(
+    "/notifications/admin",
+  );
+
+export const pushNotification = (payload: {
+  title: string;
+  body: string;
+  type: string;
+  priority?: string;
+}) =>
+  request<{
+    success: boolean;
+    message?: string;
+    notification: ApiNotification;
+  }>("/notifications/push", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const markNotificationAsRead = (id: string) =>
+  request<{ success: boolean; message: string }>(
+    `/notifications/${id}/read`,
+    { method: "PUT" },
+  );
+
+export const markAllNotificationsAsRead = () =>
+  request<{ success: boolean; message: string }>(
+    "/notifications/read-all",
+    { method: "PUT" },
+  );
+
+export const deleteNotification = (id: string) =>
+  request<{ success: boolean; message: string }>(`/notifications/${id}`, {
+    method: "DELETE",
+  });
+
+export const deleteAllNotifications = () =>
+  request<{ success: boolean; message: string }>("/notifications/delete-all", {
+    method: "DELETE",
+  });

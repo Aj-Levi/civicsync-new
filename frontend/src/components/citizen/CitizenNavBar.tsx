@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, Bell, Lightbulb } from "lucide-react";
 import { useSessionStore } from "../../store/sessionStore";
@@ -8,10 +8,14 @@ import QuickQueryPopup from "../shared/QuickQueryPopup";
 
 export default function CitizenNavBar() {
   const { user } = useSessionStore();
-  const { unreadCount } = useNotificationStore();
+  const { unreadCount, fetchNotifications } = useNotificationStore();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [queryOpen, setQueryOpen] = useState(false);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   return (
     <>

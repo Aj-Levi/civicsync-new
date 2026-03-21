@@ -15,6 +15,7 @@ import paymentRoutes from "./routes/paymentRoutes";
 import billRoutes from "./routes/billRoutes";
 import helpRoutes from "./routes/helpRoutes";
 import headAdminRoutes from "./routes/headAdminRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -48,6 +49,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/bills", billRoutes);
 app.use("/api/help", helpRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: "Route not found." });
