@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Smartphone, Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
@@ -6,7 +6,26 @@ import { useSessionStore } from "../../store/sessionStore";
 import { useTranslation } from "../../lib/i18n";
 import * as api from "../../lib/api";
 
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import type { ConfirmationResult } from "firebase/auth";
+import { auth } from "../../firebase";
+
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier;
+    confirmationResult?: ConfirmationResult;
+  }
+}
+
 type LoginRole = "citizen" | "admin" | "head_admin";
+
+const formatIndianPhone = (raw: string): string => {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (raw.startsWith("+")) return raw;
+  return `+91${digits}`;
+};
 
 export default function LoginPage() {
   const [role, setRole] = useState<LoginRole>("citizen");
@@ -20,14 +39,52 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  const formattedPhone = useMemo(() => formatIndianPhone(phone), [phone]);
+
+  const initRecaptcha = () => {
+    if (window.recaptchaVerifier) return window.recaptchaVerifier;
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-root", {
+      size: "invisible",
+    });
+    return window.recaptchaVerifier;
+  };
+
   const handleCitizenSubmit = async () => {
+    setError("");
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length < 10) {
-      setError("Please enter a valid 10-digit mobile number.");
+      setError("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
-    setError("");
-    navigate("/firebase-login", { state: { phone: cleaned } });
+
+    setLoading(true);
+    try {
+      const verifier = initRecaptcha();
+      const confirmation = await signInWithPhoneNumber(
+        auth,
+        formattedPhone,
+        verifier,
+      );
+      
+      window.confirmationResult = confirmation;
+      
+      navigate("/otp", { state: { phone: formattedPhone } });
+      
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: string }).code) : "";
+      
+      if (code === "auth/invalid-phone-number") setError("Invalid mobile number format.");
+      else if (code === "auth/too-many-requests") setError("Too many attempts. Try again later.");
+      else setError(err instanceof Error ? err.message : "Failed to send OTP.");
+      
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = undefined;
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAdminSubmit = async () => {
@@ -86,23 +143,6 @@ export default function LoginPage() {
         className="text-center"
       >
         <div className="w-20 h-20 rounded-full bg-white shadow-lg border-4 border-blue-100 flex items-center justify-center mx-auto mb-3">
-          {/* <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-            <circle cx="24" cy="24" r="18" stroke="#1E3A5F" strokeWidth="2.5" />
-            <path
-              d="M16 20c0-4.4 3.6-8 8-8s8 3.6 8 8"
-              stroke="#16A34A"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            <circle cx="24" cy="20" r="3" fill="#EA580C" />
-            <path
-              d="M12 36c0-6.6 5.4-12 12-12s12 5.4 12 12"
-              stroke="#1E3A5F"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-          </svg> */}
-
           <img src="/apple-touch-icon.png" alt="logo" className="p-1 h-15 w-20 rounded-full" />
         </div>
         <h1 className="text-2xl font-black text-[#1E3A5F] font-display">
@@ -115,7 +155,7 @@ export default function LoginPage() {
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.15 }}
-        className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-7"
+        className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-7 relative"
       >
         <div className="flex justify-center mb-5">
           <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
@@ -210,23 +250,15 @@ export default function LoginPage() {
               </button>
             )}
             {role === "citizen" && (
-              <>
-                <button
-                  onClick={() => navigate("/firebase-login")}
-                  className="w-full mt-3 py-2 text-sm text-blue-600 hover:text-blue-700"
-                >
-                  Open Firebase OTP Screen
-                </button>
-                <button
-                  onClick={() => {
-                    loginGuest();
-                    navigate("/guest");
-                  }}
-                  className="w-full mt-1 py-2 text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Continue as Guest
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  loginGuest();
+                  navigate("/guest");
+                }}
+                className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-gray-700"
+              >
+                Continue as Guest
+              </button>
             )}
           </>
         )}
@@ -282,6 +314,9 @@ export default function LoginPage() {
             </button>
           </>
         )}
+        
+        <div id="recaptcha-root" />
+        
       </motion.div>
 
       <motion.div

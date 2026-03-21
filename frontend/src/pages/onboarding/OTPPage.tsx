@@ -20,15 +20,12 @@ export default function OTPPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resend, setResend] = useState(RESEND_COOLDOWN);
-  const [resendLoading, setResendLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Redirect if no phone in state
   useEffect(() => {
     if (!phone) navigate("/login", { replace: true });
   }, [phone, navigate]);
 
-  // Resend countdown
   useEffect(() => {
     if (resend <= 0) return;
     const id = setInterval(() => setResend((v) => v - 1), 1000);
@@ -48,7 +45,7 @@ export default function OTPPage() {
     if (e.key === "Backspace" && !digits[i] && i > 0) {
       inputRefs.current[i - 1]?.focus();
     }
-    if (e.key === "Enter") handleVerify();
+    if (e.key === "Enter") void handleVerify();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -70,35 +67,48 @@ export default function OTPPage() {
       setError("Please enter all 6 digits.");
       return;
     }
+    
+    if (!window.confirmationResult) {
+      setError("Session expired. Please request OTP again.");
+      return;
+    }
+
     setError("");
     setLoading(true);
+    
     try {
-      const res = await api.verifyOTP(phone, otp);
-      const user = res.user;
-      const districtObj =
-        typeof user.district === "object" && user.district !== null
-          ? user.district
-          : null;
+      const credential = await window.confirmationResult.confirm(otp);
+      
+      const firebaseToken = await credential.user.getIdToken();
+      
+      const result = await api.firebaseLogin(firebaseToken);
+
+      localStorage.setItem("authToken", result.token);
+
+      const user = result.user;
+      const districtObj = typeof user.district === "object" && user.district !== null ? user.district : null;
 
       setCitizenSession({
-        id: user.id,
+        id: user.id || (user as any)._id || "",
         name: user.name,
         mobile: user.mobile,
         preferredLanguage: user.preferredLanguage,
-        district:
-          typeof user.district === "string"
-            ? user.district
-            : (districtObj?._id ?? (districtObj as any)?.id),
+        district: typeof user.district === "string" ? user.district : (districtObj?._id ?? (districtObj as any)?.id),
         districtName: districtObj?.name,
-        address: user.address,
-        createdAt: user.createdAt,
+        address: (user as any).address,
+        createdAt: (user as any).createdAt,
       });
+      
       navigate("/citizen", { replace: true });
+      
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Verification failed. Try again.",
-      );
-      // Clear digits on wrong OTP
+      const code = typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: string }).code) : "";
+        
+      if (code === "auth/invalid-verification-code") setError("Invalid OTP. Please try again.");
+      else if (code === "auth/code-expired") setError("OTP expired. Please request a new one.");
+      else setError(err instanceof Error ? err.message : "Verification failed. Try again.");
+      
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
     } finally {
@@ -106,42 +116,15 @@ export default function OTPPage() {
     }
   };
 
-  const handleResend = async () => {
-    setResendLoading(true);
-    setError("");
-    try {
-      await api.sendOTP(phone);
-      setResend(RESEND_COOLDOWN);
-      setDigits(Array(OTP_LENGTH).fill(""));
-      inputRefs.current[0]?.focus();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to resend OTP.");
-    } finally {
-      setResendLoading(false);
-    }
+  const handleResend = () => {
+    navigate("/login", { replace: true });
   };
 
   return (
     <div className="min-h-screen bg-[#EEF0FB] flex flex-col items-center justify-between py-10 px-6">
-      {/* Logo */}
       <div className="text-center">
         <div className="w-20 h-20 rounded-full bg-white shadow-lg border-4 border-blue-100 flex items-center justify-center mx-auto mb-3">
-          <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-            <circle cx="24" cy="24" r="18" stroke="#1E3A5F" strokeWidth="2.5" />
-            <path
-              d="M16 20c0-4.4 3.6-8 8-8s8 3.6 8 8"
-              stroke="#16A34A"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            <circle cx="24" cy="20" r="3" fill="#EA580C" />
-            <path
-              d="M12 36c0-6.6 5.4-12 12-12s12 5.4 12 12"
-              stroke="#1E3A5F"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <img src="/apple-touch-icon.png" alt="logo" className="p-1 h-15 w-20 rounded-full" />
         </div>
         <h1 className="text-2xl font-black text-[#1E3A5F] font-display">
           CivicSync
@@ -149,7 +132,6 @@ export default function OTPPage() {
         <p className="text-sm text-gray-500">Smart Interactive Kiosk</p>
       </div>
 
-      {/* Card */}
       <motion.div
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -168,7 +150,6 @@ export default function OTPPage() {
           {t("sentTo")} <strong className="text-gray-700">{phone}</strong>
         </p>
 
-        {/* OTP Inputs */}
         <div className="flex gap-2 justify-center mb-6" onPaste={handlePaste}>
           {digits.map((d, i) => (
             <input
@@ -193,7 +174,7 @@ export default function OTPPage() {
         )}
 
         <button
-          onClick={handleVerify}
+          onClick={() => void handleVerify()}
           disabled={loading}
           className="w-full py-3.5 rounded-xl bg-[#16A34A] text-white font-bold text-base hover:bg-green-700 transition-colors btn-touch mb-4 disabled:opacity-60 flex items-center justify-center gap-2"
         >
@@ -207,7 +188,6 @@ export default function OTPPage() {
           )}
         </button>
 
-        {/* Resend */}
         <p className="text-center text-sm text-gray-400">
           {t("didntReceive")}{" "}
           {resend > 0 ? (
@@ -218,10 +198,9 @@ export default function OTPPage() {
           ) : (
             <button
               onClick={handleResend}
-              disabled={resendLoading}
               className="text-blue-600 font-semibold hover:underline disabled:opacity-60"
             >
-              {resendLoading ? "Sending…" : t("resend")}
+              {t("resend")}
             </button>
           )}
         </p>
