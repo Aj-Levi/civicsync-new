@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Megaphone, AlertTriangle, Clock, Bell } from "lucide-react";
 import { useNotificationStore } from "../../store/notificationStore";
@@ -19,7 +19,12 @@ const typeConfig: Record<
 };
 
 export default function AdminNotificationsPage() {
-  const { notifications, addNotification } = useNotificationStore();
+  const { notifications, addNotification, fetchNotifications } = useNotificationStore();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [type, setType] = useState<NotifType>("announcement");
@@ -31,7 +36,6 @@ export default function AdminNotificationsPage() {
       type,
       title,
       body,
-      date: new Date().toISOString().split("T")[0],
     });
     setPushed(true);
     setTitle("");
@@ -132,7 +136,8 @@ export default function AdminNotificationsPage() {
           <h2 className="font-bold text-gray-700 mb-4">Notification History</h2>
           <div className="space-y-3 max-h-[500px] overflow-y-auto">
             {[...notifications].reverse().map((n) => {
-              const { icon: Icon, color, bg } = typeConfig[n.type];
+              const typeKey = (n.type as NotifType) in typeConfig ? (n.type as NotifType) : "announcement";
+              const { icon: Icon, color, bg } = typeConfig[typeKey];
               return (
                 <div
                   key={n.id}
