@@ -6,12 +6,15 @@ import type {
   HeadAdminDepartment,
   HeadAdminDepartmentAdmin,
 } from "../../lib/api";
+import { INDIAN_STATES } from "../../lib/indianStates";
+
 
 export default function HeadAdminDashboardPage() {
   const [departments, setDepartments] = useState<HeadAdminDepartment[]>([]);
   const [admins, setAdmins] = useState<HeadAdminDepartmentAdmin[]>([]);
 
   const [departmentId, setDepartmentId] = useState("");
+  const [selectedState, setSelectedState] = useState(INDIAN_STATES[0]);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -48,11 +51,29 @@ export default function HeadAdminDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const adminsByDepartment = useMemo(() => {
+  // Auto-generate username & password when state or department changes
+  useEffect(() => {
+    if (departmentId && selectedState) {
+      const dept = departments.find((d) => d._id === departmentId);
+      if (dept) {
+        const dName = dept.name.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+        const sName = selectedState.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+        setUsername(`${sName}_${dName}`);
+        setPassword(`${sName}_${dName}_123`);
+        setName(`${selectedState} ${dept.name} Admin`);
+      }
+    } else {
+      setUsername("");
+      setPassword("");
+      setName("");
+    }
+  }, [departmentId, selectedState, departments]);
+
+  const adminsByKey = useMemo(() => {
     const map = new Map<string, HeadAdminDepartmentAdmin>();
     admins.forEach((admin) => {
-      if (admin.department?._id) {
-        map.set(admin.department._id, admin);
+      if (admin.department?._id && admin.district?.name) {
+        map.set(`${admin.department._id}_${admin.district.name}`, admin);
       }
     });
     return map;
@@ -63,8 +84,8 @@ export default function HeadAdminDashboardPage() {
     setMessage("");
     setError("");
 
-    if (!departmentId || !username.trim() || !password) {
-      setError("Department, username and password are required.");
+    if (!departmentId || !selectedState || !username.trim() || !password) {
+      setError("State, Department, username and password are required.");
       return;
     }
 
@@ -72,14 +93,12 @@ export default function HeadAdminDashboardPage() {
     try {
       const res = await api.createDepartmentAdmin({
         departmentId,
+        stateName: selectedState,
         username: username.trim(),
         password,
         name: name.trim() || undefined,
       });
       setMessage(res.message);
-      setName("");
-      setUsername("");
-      setPassword("");
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create department admin.");
@@ -117,12 +136,26 @@ export default function HeadAdminDashboardPage() {
             <h2 className="font-semibold text-gray-800">Create Department Admin</h2>
           </div>
 
+          <label className="block text-sm text-gray-600 mb-1">State</label>
+          <select
+            value={selectedState}
+            onChange={(e) => setSelectedState(e.target.value)}
+            disabled={loading || submitting}
+            className="w-full border rounded-lg px-3 py-2 mb-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 outline-none"
+          >
+            {INDIAN_STATES.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
+          </select>
+
           <label className="block text-sm text-gray-600 mb-1">Department</label>
           <select
             value={departmentId}
             onChange={(e) => setDepartmentId(e.target.value)}
             disabled={loading || submitting}
-            className="w-full border rounded-lg px-3 py-2 mb-3"
+            className="w-full border rounded-lg px-3 py-2 mb-3 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-300 outline-none"
           >
             {departments.map((dept) => (
               <option key={dept._id} value={dept._id}>
@@ -131,38 +164,38 @@ export default function HeadAdminDashboardPage() {
             ))}
           </select>
 
-          {departmentId && adminsByDepartment.has(departmentId) && (
+          {departmentId && selectedState && adminsByKey.has(`${departmentId}_${selectedState}`) && (
             <p className="mb-3 text-xs text-amber-700 bg-amber-50 rounded p-2">
-              This department already has an active admin.
+              This department already has an active admin in this state.
             </p>
           )}
 
-          <label className="block text-sm text-gray-600 mb-1">Name (optional)</label>
+          <label className="block text-sm text-gray-600 mb-1">Admin Name</label>
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            readOnly
             disabled={submitting}
-            className="w-full border rounded-lg px-3 py-2 mb-3"
-            placeholder="Electricity Admin"
+            className="w-full border rounded-lg px-3 py-2 mb-3 bg-gray-100 text-gray-500 font-medium select-none"
+            placeholder="Auto-generated"
           />
 
-          <label className="block text-sm text-gray-600 mb-1">Username</label>
+          <label className="block text-sm text-gray-600 mb-1">Auto-Generated Username</label>
           <input
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            readOnly
             disabled={submitting}
-            className="w-full border rounded-lg px-3 py-2 mb-3"
-            placeholder="elec_admin"
+            className="w-full border rounded-lg px-3 py-2 mb-3 bg-gray-100 text-gray-500 font-medium select-none"
+            placeholder="Auto-generated"
           />
 
-          <label className="block text-sm text-gray-600 mb-1">Password</label>
+          <label className="block text-sm text-gray-600 mb-1">Auto-Generated Password</label>
           <input
-            type="password"
+            type="text"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            readOnly
             disabled={submitting}
-            className="w-full border rounded-lg px-3 py-2 mb-4"
-            placeholder="Minimum 6 characters"
+            className="w-full border rounded-lg px-3 py-2 mb-4 bg-gray-100 text-gray-500 font-medium select-none"
+            placeholder="Auto-generated"
           />
 
           <button
@@ -192,8 +225,8 @@ export default function HeadAdminDashboardPage() {
                 <thead>
                   <tr className="text-left text-xs uppercase text-gray-500 border-b">
                     <th className="py-2">Department</th>
+                    <th className="py-2">State</th>
                     <th className="py-2">Username</th>
-                    <th className="py-2">District</th>
                     <th className="py-2">Created</th>
                     <th className="py-2">Action</th>
                   </tr>
@@ -204,8 +237,8 @@ export default function HeadAdminDashboardPage() {
                       <td className="py-3 font-medium text-gray-800">
                         {admin.department?.name} ({admin.department?.code})
                       </td>
+                      <td className="py-3 text-gray-600 font-medium">{admin.district?.name}</td>
                       <td className="py-3 text-gray-600">{admin.username}</td>
-                      <td className="py-3 text-gray-600">{admin.district?.name}</td>
                       <td className="py-3 text-gray-600">
                         {new Date(admin.createdAt).toLocaleDateString("en-IN")}
                       </td>

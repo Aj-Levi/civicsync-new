@@ -89,9 +89,10 @@ export const submitServiceRequest = async (
       return;
     }
 
-    const [department, district] = await Promise.all([
+    const stateName = (state || districtName || "Unknown").trim();
+    const [department, existingDistrict] = await Promise.all([
       Department.findOne({ code: deptCode }),
-      District.findOne({ name: new RegExp(`^${districtName}$`, "i") }),
+      District.findOne({ name: new RegExp(`^${stateName}$`, "i") }),
     ]);
 
     if (!department) {
@@ -101,12 +102,18 @@ export const submitServiceRequest = async (
       });
       return;
     }
+
+    // Auto-create the state/district record if it doesn't exist
+    let district = existingDistrict;
     if (!district) {
-      res.status(404).json({
-        success: false,
-        message: `District '${districtName}' not found.`,
+      district = await District.create({
+        name: stateName,
+        state: stateName,
+        stateCode: stateName.substring(0, 2).toUpperCase(),
+        pinCodes: pincode && pincode !== "000000" ? [pincode] : [],
+        coordinates: { latitude: 20.5937, longitude: 78.9629 },
+        isActive: true,
       });
-      return;
     }
 
     const filesDict =

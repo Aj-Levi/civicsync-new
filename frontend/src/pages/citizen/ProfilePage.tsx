@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useSessionStore } from "../../store/sessionStore";
 import { useTranslation } from "../../lib/i18n";
+import { INDIAN_STATES } from "../../lib/indianStates";
 import * as api from "../../lib/api";
 import type { DistrictOption, UserAddress } from "../../lib/api";
 
@@ -205,30 +206,14 @@ export default function ProfilePage() {
     user?.address ?? {},
   );
 
-  // Districts for picker
-  const [districts, setDistricts] = useState<DistrictOption[]>([]);
-  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  // Districts for picker - use complete Indian states list
+  const districts: DistrictOption[] = INDIAN_STATES.map((state) => ({ id: state, name: state, state: state }));
+  const loadingDistricts = false;
 
   const handleLogout = () => {
     void logout();
     navigate("/", { replace: true });
   };
-
-  // Load districts lazily when edit mode opens
-  useEffect(() => {
-    if (!editing || districts.length > 0) return;
-    void (async () => {
-      setLoadingDistricts(true);
-      try {
-        const res = await api.getDistricts();
-        setDistricts(res.districts);
-      } catch {
-        /* noop */
-      } finally {
-        setLoadingDistricts(false);
-      }
-    })();
-  }, [editing, districts.length]);
 
   // Reset form fields when entering edit mode (to always reflect latest values)
   const enterEdit = () => {
@@ -258,7 +243,7 @@ export default function ProfilePage() {
       const payload: api.UpdateProfilePayload = {
         name: formName.trim(),
         preferredLanguage: formLang,
-        ...(formDistrictId ? { districtId: formDistrictId } : {}),
+        ...(formDistrictName ? { districtName: formDistrictName } : {}),
         address: formAddress,
       };
       const res = await api.updateProfile(payload);
@@ -545,7 +530,7 @@ export default function ProfilePage() {
                 },
                 {
                   Icon: MapPin,
-                  label: "District",
+                  label: "State",
                   val: user?.districtName
                     ? user.districtName
                     : (user?.district ?? undefined),

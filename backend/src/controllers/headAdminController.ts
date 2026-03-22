@@ -315,14 +315,19 @@ export const getHeadAdminMeta = async (
       .sort({ name: 1 })
       .lean();
 
-    const district = await getDefaultDistrict();
+    const districtsList = await District.find({ isActive: true })
+      .select("name state")
+      .sort({ name: 1 })
+      .lean();
 
     res.status(200).json({
       success: true,
       departments,
-      defaultDistrict: district
-        ? { id: district._id, name: district.name, state: district.state }
-        : null,
+      districts: districtsList.map((d) => ({
+        id: d._id,
+        name: d.name,
+        state: d.state,
+      })),
     });
   } catch (err) {
     next(err);
@@ -335,17 +340,18 @@ export const createDepartmentAdmin = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { departmentId, username, password, name } = req.body as {
+    const { departmentId, stateName, username, password, name } = req.body as {
       departmentId?: string;
+      stateName?: string;
       username?: string;
       password?: string;
       name?: string;
     };
 
-    if (!departmentId || !username || !password) {
+    if (!departmentId || !stateName || !username || !password) {
       res.status(400).json({
         success: false,
-        message: "departmentId, username and password are required.",
+        message: "departmentId, stateName, username and password are required.",
       });
       return;
     }
@@ -379,14 +385,19 @@ export const createDepartmentAdmin = async (
       return;
     }
 
-    const district = await getDefaultDistrict();
+    // Auto-create the state (District record) if it doesn't exist yet
+    let district = await District.findOne({ name: stateName.trim() }).lean();
     if (!district) {
-      res.status(400).json({
-        success: false,
-        message:
-          "No active district found. Seed at least one district before creating admins.",
+      const stateCode = stateName.trim().substring(0, 2).toUpperCase();
+      const created = await District.create({
+        name: stateName.trim(),
+        state: stateName.trim(),
+        stateCode,
+        pinCodes: [],
+        coordinates: { latitude: 20.5937, longitude: 78.9629 },
+        isActive: true,
       });
-      return;
+      district = created.toObject();
     }
 
     const existingForScope = await Admin.findOne({

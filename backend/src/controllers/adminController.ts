@@ -361,11 +361,7 @@ export const getAdminBillMeta = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userFilter: Record<string, any> = {};
     if (districtId) {
-      userFilter.$or = [
-        { district: districtId },
-        { district: { $exists: false } },
-        { district: null },
-      ];
+      userFilter.district = districtId;
     }
     const users = await User.find(userFilter)
       .select("name mobile district")
