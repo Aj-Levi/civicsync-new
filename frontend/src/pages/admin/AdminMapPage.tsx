@@ -164,11 +164,11 @@ export default function AdminMapPage() {
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-50">
           <h2 className="font-bold text-gray-700 text-sm">
-            District Summary — Last {days} days
+            State Summary — Last {days} days
             {category ? ` · ${category}` : ""}
             {districts.length > 0 && (
               <span className="ml-2 text-gray-400 font-normal">
-                ({districts.length} districts)
+                ({districts.length} states)
               </span>
             )}
           </h2>
@@ -184,7 +184,7 @@ export default function AdminMapPage() {
                 <tr className="bg-gray-50 text-xs text-gray-400 font-semibold uppercase">
                   {[
                     "Rank",
-                    "District",
+                    "State",
                     "Complaints",
                     "Top Category",
                     "Urgency Score",

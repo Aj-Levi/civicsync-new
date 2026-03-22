@@ -207,7 +207,7 @@ export const getHeadAdminMeta = () =>
   request<{
     success: boolean;
     departments: HeadAdminDepartment[];
-    defaultDistrict: { id: string; name: string; state: string } | null;
+    districts: { id: string; name: string; state: string }[];
   }>("/admin/head-admin/meta");
 
 export const getDepartmentAdmins = () =>
@@ -217,6 +217,7 @@ export const getDepartmentAdmins = () =>
 
 export const createDepartmentAdmin = (payload: {
   departmentId: string;
+  stateName: string;
   username: string;
   password: string;
   name?: string;

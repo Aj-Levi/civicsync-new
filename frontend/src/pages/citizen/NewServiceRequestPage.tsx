@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { INDIAN_STATES } from "../../lib/indianStates";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import MascotGuide from "../../components/shared/MascotGuide";
@@ -50,15 +51,7 @@ const REQUEST_TYPES: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
-const LOCATION_DATA: Record<string, Record<string, string[]>> = {
-  Haryana: {
-    Karnal: ["132001", "132022", "132023", "132024"],
-    Panipat: ["132103", "132104", "132105", "132107"],
-    Ambala: ["134001", "134003", "134007"],
-    Hisar: ["125001", "125004", "125005"],
-    Rohtak: ["124001", "124010", "124021"],
-  },
-};
+
 
 function FileZone({
   label,
@@ -124,13 +117,10 @@ export default function NewServiceRequestPage() {
   );
   const [state, setState] = useState(() => {
     const s = (user?.address?.state ?? "").trim();
-    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
+    return INDIAN_STATES.includes(s) ? s : "";
   });
   const [district, setDistrict] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    const d = (user?.districtName ?? "").trim();
-    if (!s || !d || !LOCATION_DATA[s]) return "";
-    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
+    return (user?.districtName ?? "").trim();
   });
   const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
   const [additionalNotes, setAdditionalNotes] = useState("");
@@ -145,15 +135,14 @@ export default function NewServiceRequestPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const states = Object.keys(LOCATION_DATA).sort();
-  const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
+
 
   const step2Valid =
     applicantName.trim().length > 0 &&
     contactPhone.trim().length === 10 &&
     streetAddress.trim().length > 0 &&
     state !== "" &&
-    district !== "" &&
+    district.trim().length > 0 &&
     pincode.length === 6 &&
     /^\d{6}$/.test(pincode);
 
@@ -413,7 +402,7 @@ export default function NewServiceRequestPage() {
               className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none ${touched2 && !state ? "border-red-300" : "border-gray-200"}`}
             >
               <option value="">-- Select State --</option>
-              {states.map((s) => (
+              {INDIAN_STATES.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -422,23 +411,15 @@ export default function NewServiceRequestPage() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-600 block mb-1.5">
-              District *
+              City / District *
             </label>
-            <select
+            <input
+              type="text"
               value={district}
-              disabled={!state}
-              onChange={(e) => {
-                setDistrict(e.target.value);
-              }}
-              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none disabled:opacity-50 ${touched2 && !district ? "border-red-300" : "border-gray-200"}`}
-            >
-              <option value="">-- Select District --</option>
-              {districts.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+              onChange={(e) => setDistrict(e.target.value)}
+              placeholder="e.g. Jalandhar, Ludhiana, Noida"
+              className={`w-full border rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 ${touched2 && !district.trim() ? "border-red-300" : "border-gray-200"}`}
+            />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-600 block mb-1.5">

@@ -328,10 +328,11 @@ export const updateProfile = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { name, preferredLanguage, districtId, address } = req.body as {
+    const { name, preferredLanguage, districtId, districtName, address } = req.body as {
       name?: string;
       preferredLanguage?: string;
       districtId?: string;
+      districtName?: string;
       address?: {
         houseNo?: string;
         street?: string;
@@ -367,13 +368,25 @@ export const updateProfile = async (
       user.preferredLanguage = preferredLanguage as "en" | "hi" | "as";
     }
 
-    if (districtId !== undefined) {
-      const district = await District.findById(districtId).lean();
-      if (!district) {
+    if (districtName) {
+      const stateName = districtName.trim();
+      let stateRecord = await District.findOne({ name: new RegExp(`^${stateName}$`, "i") });
+      if (!stateRecord) {
+        stateRecord = await District.create({
+          name: stateName,
+          state: stateName,
+          stateCode: stateName.substring(0, 2).toUpperCase(),
+          isActive: true,
+        });
+      }
+      user.district = stateRecord._id as typeof user.district;
+    } else if (districtId !== undefined) {
+      const stateRecord = await District.findById(districtId).lean();
+      if (!stateRecord) {
         res.status(400).json({ success: false, message: "Invalid district." });
         return;
       }
-      user.district = district._id as typeof user.district;
+      user.district = stateRecord._id as typeof user.district;
     }
 
     if (address !== undefined) {
@@ -389,6 +402,17 @@ export const updateProfile = async (
 
     await user.save();
     await user.populate("district", "name state");
+
+    // Re-issue JWT to immediately refresh `districtId` scope without requiring re-login
+    const token = signToken(
+      {
+        id: user.id as string,
+        role: "citizen",
+        districtId: user.district?._id?.toString() ?? "",
+      },
+      CITIZEN_TTL,
+    );
+    setTokenCookie(res, token, CITIZEN_TTL);
 
     res.status(200).json({
       success: true,

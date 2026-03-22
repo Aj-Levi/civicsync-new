@@ -16,21 +16,34 @@ const DISTRICTS: Record<
     coordinates: { latitude: number; longitude: number };
   }
 > = {
-  karnal: {
-    name: "Karnal",
+  haryana: {
+    name: "Haryana",
     state: "Haryana",
     stateCode: "HR",
-    pinCodes: ["132001", "132022", "132023", "132024"],
-    coordinates: { latitude: 29.6857, longitude: 76.9905 },
+    pinCodes: ["132001", "132103", "133001", "122001"],
+    coordinates: { latitude: 29.0588, longitude: 76.0856 },
   },
-  panipat: {
-    name: "Panipat",
-    state: "Haryana",
-    stateCode: "HR",
-    pinCodes: ["132103", "132104", "132105", "132107"],
-    coordinates: { latitude: 29.3867, longitude: 76.9694 },
+  punjab: {
+    name: "Punjab",
+    state: "Punjab",
+    stateCode: "PB",
+    pinCodes: ["141001", "143001", "144001", "160055"],
+    coordinates: { latitude: 31.1471, longitude: 75.3412 },
   },
-  // Add more districts here as needed
+  delhi: {
+    name: "Delhi",
+    state: "Delhi",
+    stateCode: "DL",
+    pinCodes: ["110001", "110017", "110007", "110031"],
+    coordinates: { latitude: 28.7041, longitude: 77.1025 },
+  },
+  uttar_pradesh: {
+    name: "Uttar Pradesh",
+    state: "Uttar Pradesh",
+    stateCode: "UP",
+    pinCodes: ["201301", "201001", "226001", "221001"],
+    coordinates: { latitude: 26.8467, longitude: 80.9462 },
+  },
 };
 
 // ─── Department Data (shared across all districts) ─────────────────────────────

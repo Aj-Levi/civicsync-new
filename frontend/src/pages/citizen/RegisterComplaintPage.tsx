@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { INDIAN_STATES } from "../../lib/indianStates";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -123,44 +124,7 @@ const URGENCY_OPTIONS: { value: Urgency; label: string; color: string }[] = [
   },
 ];
 
-// ── State → District → Pincode data ───────────────────────────────────────────
-const LOCATION_DATA: Record<string, Record<string, string[]>> = {
-  Haryana: {
-    Karnal: ["132001", "132022", "132023", "132024"],
-    Panipat: ["132103", "132104", "132105", "132107"],
-    Ambala: ["133001", "133004", "134003", "134007"],
-    Kurukshetra: ["136118", "136119", "136130"],
-    Sonipat: ["131001", "131002", "131021"],
-    Rohtak: ["124001", "124022", "124027"],
-    Hisar: ["125001", "125004", "125005"],
-    Gurugram: ["122001", "122002", "122003", "122004"],
-    Faridabad: ["121001", "121002", "121003", "121004"],
-    Yamunanagar: ["135001", "135003", "135021"],
-  },
-  Punjab: {
-    Amritsar: ["143001", "143002", "143006", "143108"],
-    Ludhiana: ["141001", "141002", "141003", "141008"],
-    Jalandhar: ["144001", "144002", "144003", "144021"],
-    Patiala: ["147001", "147002", "147003", "147004"],
-    Mohali: ["160055", "160059", "160062", "160071"],
-  },
-  Delhi: {
-    "Central Delhi": ["110001", "110002", "110003", "110005"],
-    "South Delhi": ["110017", "110019", "110025", "110048"],
-    "North Delhi": ["110007", "110009", "110033", "110052"],
-    "East Delhi": ["110031", "110032", "110096"],
-    "West Delhi": ["110018", "110026", "110027", "110041"],
-  },
-  "Uttar Pradesh": {
-    Noida: ["201301", "201305", "201307", "201317"],
-    Ghaziabad: ["201001", "201002", "201003", "201005"],
-    Agra: ["282001", "282002", "282003", "282004"],
-    Lucknow: ["226001", "226002", "226010", "226012"],
-    Varanasi: ["221001", "221002", "221003", "221004"],
-  },
-};
 
-const STATES = Object.keys(LOCATION_DATA).sort();
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const step2Valid = (
@@ -177,7 +141,7 @@ const step3Valid = (
 ) =>
   streetAddress.trim().length > 0 &&
   state !== "" &&
-  district !== "" &&
+  district.trim().length > 0 &&
   pincode.length === 6 &&
   /^\d{6}$/.test(pincode);
 
@@ -202,13 +166,10 @@ export default function RegisterComplaintPage() {
   );
   const [state, setState_] = useState(() => {
     const s = (user?.address?.state ?? "").trim();
-    return Object.keys(LOCATION_DATA).includes(s) ? s : "";
+    return INDIAN_STATES.includes(s) ? s : "";
   });
   const [district, setDistrict] = useState(() => {
-    const s = (user?.address?.state ?? "").trim();
-    const d = (user?.districtName ?? "").trim();
-    if (!s || !d || !LOCATION_DATA[s]) return "";
-    return Object.keys(LOCATION_DATA[s]).includes(d) ? d : "";
+    return (user?.districtName ?? "").trim();
   });
   const [pincode, setPincode] = useState(() => user?.address?.pincode ?? "");
 
@@ -267,42 +228,24 @@ export default function RegisterComplaintPage() {
       setComplaintScope(voiceData.scope as "personal" | "locality");
     }
     if (voiceData.state) {
-      const matchedState = STATES.find(
+      const matchedState = INDIAN_STATES.find(
         (s) => s.toLowerCase() === voiceData.state?.toLowerCase(),
       );
       if (matchedState) {
         setState_(matchedState);
-        if (voiceData.district) {
-          const districtsForState = Object.keys(
-            LOCATION_DATA[matchedState] ?? {},
-          );
-          const matchedDistrict = districtsForState.find(
-            (d) => d.toLowerCase() === voiceData.district?.toLowerCase(),
-          );
-          if (matchedDistrict) {
-            setDistrict(matchedDistrict);
-            if (voiceData.pincode) {
-              setPincode(voiceData.pincode);
-            }
-          }
-        }
       }
     }
+    if (voiceData.district) setDistrict(voiceData.district);
+    if (voiceData.pincode) setPincode(voiceData.pincode);
     if (voiceData.streetAddress) setStreetAddress(voiceData.streetAddress);
 
     // Clear the route state so it doesn't re-apply on re-render
     window.history.replaceState({}, document.title);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const districts = state ? Object.keys(LOCATION_DATA[state] ?? {}).sort() : [];
-
   const handleStateChange = (s: string) => {
     setState_(s);
     setDistrict("");
-  };
-
-  const handleDistrictChange = (d: string) => {
-    setDistrict(d);
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -442,7 +385,7 @@ export default function RegisterComplaintPage() {
 
       if (complaintScope === "locality") {
         try {
-          const prevCompsRes = await api.getDistrictComplaints(district);
+          const prevCompsRes = await api.getDistrictComplaints(state);
           const prevComplaints = prevCompsRes.success
             ? prevCompsRes.descriptions
             : [];
@@ -836,7 +779,7 @@ export default function RegisterComplaintPage() {
                     }`}
                   >
                     <option value="">Select state…</option>
-                    {STATES.map((s) => (
+                    {INDIAN_STATES.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
@@ -854,35 +797,20 @@ export default function RegisterComplaintPage() {
 
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1 block">
-                  District <span className="text-red-400">*</span>
+                  City / District <span className="text-red-400">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    value={district}
-                    onChange={(e) => handleDistrictChange(e.target.value)}
-                    disabled={!state}
-                    className={`w-full appearance-none bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 pr-8 disabled:opacity-50 ${
-                      touched3 && !district
-                        ? "border-red-300"
-                        : "border-gray-200"
-                    }`}
-                  >
-                    <option value="">
-                      {state ? "Select district…" : "Select state first"}
-                    </option>
-                    {districts.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                  />
-                </div>
-                {touched3 && !district && (
-                  <FieldError msg="Please select a district." />
+                <input
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  placeholder="e.g. Jalandhar, Ludhiana, Noida"
+                  className={`w-full bg-gray-50 border rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    touched3 && !district.trim()
+                      ? "border-red-300"
+                      : "border-gray-200"
+                  }`}
+                />
+                {touched3 && !district.trim() && (
+                  <FieldError msg="Please enter your city or district." />
                 )}
               </div>
 

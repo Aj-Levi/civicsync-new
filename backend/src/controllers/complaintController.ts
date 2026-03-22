@@ -41,10 +41,10 @@ export const submitComplaint = async (
       description,
       urgency = "medium",
       streetAddress = "",
-      city = "Karnal",
-      state = "Haryana",
+      city = "",
+      state = "",
       pincode = "000000",
-      districtName = "Karnal",
+      districtName = "",
     } = req.body as {
       departmentCode?: string;
       category?: string;
@@ -84,15 +84,21 @@ export const submitComplaint = async (
       return;
     }
 
-    const district = await District.findOne({
-      name: new RegExp(`^${districtName}$`, "i"),
+    // Auto-create the district/state record if it doesn't exist
+    // IMPORTANT: The District DB collection represents States now.
+    const stateName = (state || districtName || "Unknown").trim();
+    let district = await District.findOne({
+      name: new RegExp(`^${stateName}$`, "i"),
     });
     if (!district) {
-      res.status(404).json({
-        success: false,
-        message: `District '${districtName}' not found.`,
+      district = await District.create({
+        name: stateName,
+        state: stateName,
+        stateCode: stateName.substring(0, 2).toUpperCase(),
+        pinCodes: pincode && pincode !== "000000" ? [pincode] : [],
+        coordinates: { latitude: 20.5937, longitude: 78.9629 },
+        isActive: true,
       });
-      return;
     }
 
     let photoUrl = "";
