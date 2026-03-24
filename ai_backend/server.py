@@ -22,7 +22,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://civicsync-new.vercel.app", 
-        "http://localhost:5173" # Good to keep for local testing!
+        "http://localhost:5173",
+        "https://civic-sync0.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
